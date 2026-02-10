@@ -1,0 +1,63 @@
+# Модули/рабочие файлы Go
+go.work
+go.work.sum
+
+# Артефакты сборки Go
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.cover
+*.coverprofile
+*.cov
+coverage.*
+cover/
+coverage/
+dist/
+bin/
+build/
+out/
+tmp/
+temp/
+
+# Профили/pprof
+*.pprof
+cpu.prof
+mem.prof
+
+# IDE/редакторы
+.idea/
+.vscode/
+.fleet/
+*.swp
+*.swo
+
+# ОС/проводники
+.DS_Store
+Thumbs.db
+
+# Логи
+logs/
+*.log
+
+# Кеши/временные каталоги
+.cache/
+**/.cache/
+
+# Переменные окружения (используем godotenv)
+.env
+.env.*
+!.env.example
+.envrc
+.direnv/
+
+# Локальные данные/артефакты разработки (если появятся)
+data/
+!data/.keep
+screenshots/
+recordings/
+
+*.png
+*.jpg
