@@ -12,5 +12,6 @@
 - [Инструкции по документации](docs/writing_guidelines.md) — правила создания новых .md файлов.
 - [Общая архитектура](docs/architecture_overall.md) — структура всего комплекса AI компаньона.
 - [Архитектура приложения](docs/app_architecture.md) — внутреннее устройство данного Go-приложения.
+- [Бизнес описание](docs/business_overview.md)
 
 Вспомогательные промпты для ИИ можно найти в [docs/README.md](docs/README.md).

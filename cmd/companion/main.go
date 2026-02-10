@@ -32,29 +32,31 @@ func main() {
 	}()
 
 	ctx := context.Background()
-	_ = openai.NewClient() // для реальных клиентов, если понадобятся
+	// создаём реального клиента OpenAI (использует переменные окружения, напр. OPENAI_API_KEY)
+	oclient := openai.NewClient()
 
 	sugar.Infow(
 		"Starting app",
 		"DebugMode", cfg.DebugMode,
 	)
 
-	// Инициализируем вариант заглушку согласно требованию
-	aiClient := ai.NewStubClient()
+	visionClient := ai.NewVisionClient(&oclient, cfg)
 
-	imageData, err := os.ReadFile("images/1.jpg")
+	// Читаем демо‑картинку (в проекте доступны images/1.png и images/2.png)
+	imageData, err := os.ReadFile("images/1.png")
 	if err != nil {
 		log.Fatalf("failed to read image file: %v", err)
 	}
 	base64Image := base64.StdEncoding.EncodeToString(imageData)
-	imageURL := fmt.Sprintf("data:image/jpeg;base64,%s", base64Image)
+	// Важно: правильный MIME‑тип для PNG
+	imageURL := fmt.Sprintf("data:image/png;base64,%s", base64Image)
 
 	text := "Это скриншот игры мира кораблей. Внизу панель с моим вооружением и под цифрой три торпеды. Сколько секунд они ещё будут перезарежаться?"
 
-	resp, err := aiClient.SendRequest(ctx, text, imageURL)
-	if err != nil {
-		log.Fatal(err)
+	// 3) Визуальный клиент (текст + картинка)
+	if resp, err := visionClient.SendRequest(ctx, text, imageURL); err != nil {
+		fmt.Printf("VisionClient error: %v\n", err)
+	} else {
+		fmt.Printf("VisionClient response: %s\n", resp)
 	}
-
-	fmt.Println(resp)
 }
