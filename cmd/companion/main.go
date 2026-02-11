@@ -40,16 +40,7 @@ func main() {
 		"DebugMode", cfg.DebugMode,
 	)
 
-	// Пример использования диалогового клиента (Responses‑основанный)
-	dlg := ai.NewResponsesDialogueClient(&oClient, openai.ChatModelGPT4o)
-
-	// 1. Создать диалог с параметрами (инструкциями)
-	instructions := "Ты старый пират и во все ответы добавляешь характерные комментарии, лексику"
-	convID, err := dlg.CreateConversation(ctx, instructions)
-	if err != nil {
-		sugar.Errorw("failed to create conversation", "error", err)
-		return
-	}
+	dlg := ai.NewVisionClient(&oClient, cfg)
 
 	// Подготовим data URL для изображений (используем имеющиеся images/1.png и images/2.png)
 	mkDataURL := func(path string) (string, error) {
