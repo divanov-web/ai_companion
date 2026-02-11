@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/conversations"
 	"github.com/openai/openai-go/v3/responses"
 )
 
@@ -101,9 +102,15 @@ func (c *ResponsesDialogueClient) SendMessage(ctx context.Context, conversationI
 	}
 	inputItems = append(inputItems, responses.ResponseInputItemParamOfMessage(user, responses.EasyInputMessageRoleUser))
 
+	conv, err := c.client.Conversations.New(ctx, conversations.ConversationNewParams{})
+	if err != nil {
+		return "", err
+	}
+
 	resp, err := c.client.Responses.New(ctx, responses.ResponseNewParams{
-		Model: c.model,
-		Input: responses.ResponseNewParamsInputUnion{OfInputItemList: inputItems},
+		Model:        c.model,
+		Conversation: responses.ResponseNewParamsConversationUnion{OfString: openai.String(conv.ID)},
+		Input:        responses.ResponseNewParamsInputUnion{OfInputItemList: inputItems},
 	})
 	if err != nil {
 		return "", err
