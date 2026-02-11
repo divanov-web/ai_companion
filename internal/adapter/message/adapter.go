@@ -1,42 +1,34 @@
-package ai
+package message
 
 import (
-	"OpenAIClient/internal/config"
 	"context"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 )
 
-// VisionClient отправляет текст и картинку в OpenAI
-type VisionClient struct {
+type Adapter struct {
 	client *openai.Client
-	model  string
 }
 
-func NewVisionClient(client *openai.Client, cfg *config.Config) *VisionClient {
-	return &VisionClient{
-		client: client,
-		model:  string(openai.ChatModelGPT4o),
-	}
+func New(client *openai.Client) *Adapter {
+	return &Adapter{client: client}
 }
 
-func (c *VisionClient) SendRequest(ctx context.Context, text string, imageURL string) (string, error) {
-	resp, err := c.client.Responses.New(ctx, responses.ResponseNewParams{
+func (a *Adapter) SendTextWithImage(ctx context.Context, conversationID string, text string, imageDataURL string) (string, error) {
+	params := responses.ResponseNewParams{
 		Model: openai.ChatModelGPT4o,
 		Input: responses.ResponseNewParamsInputUnion{
 			OfInputItemList: responses.ResponseInputParam{
 				responses.ResponseInputItemParamOfMessage(
 					responses.ResponseInputMessageContentListParam{
 						{
-							OfInputText: &responses.ResponseInputTextParam{
-								Text: text,
-							},
+							OfInputText: &responses.ResponseInputTextParam{Text: text},
 						},
 						{
 							OfInputImage: &responses.ResponseInputImageParam{
 								Detail:   responses.ResponseInputImageDetailAuto,
-								ImageURL: openai.String(imageURL),
+								ImageURL: openai.String(imageDataURL),
 							},
 						},
 					},
@@ -44,7 +36,12 @@ func (c *VisionClient) SendRequest(ctx context.Context, text string, imageURL st
 				),
 			},
 		},
-	})
+	}
+	if conversationID != "" {
+		params.Conversation = responses.ResponseNewParamsConversationUnion{OfString: openai.String(conversationID)}
+	}
+
+	resp, err := a.client.Responses.New(ctx, params)
 	if err != nil {
 		return "", err
 	}
