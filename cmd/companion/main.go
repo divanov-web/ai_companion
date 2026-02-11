@@ -78,7 +78,13 @@ func main() {
 		return "", errors.Join(errors.New("failed to load image"), lastErr)
 	}
 
-	convID, err := companion.StartConversation(ctx)
+	startContext := "Ты играешь роль старшего помощника, я капитан корабля. У тебя манера речи и лексикон как у стереотипного пирата." +
+		"Твои ответы должны быть короткие 1-2 предложения."
+	metadata := map[string]string{
+		"ship":   "Громовержец",
+		"battle": "оценка экипажа",
+	}
+	convID, err := companion.StartConversation(ctx, startContext, metadata)
 	if err != nil {
 		sugar.Fatalw("Failed to start conversation", "error", err)
 	}
@@ -92,13 +98,13 @@ func main() {
 		sugar.Fatalw("Failed to load image 2", "error", err)
 	}
 
-	resp1, err := companion.SendMessageWithImage(ctx, convID, "Подходит ли этот боец в плавание", img1)
+	resp1, err := companion.SendMessageWithImage(ctx, convID, "Подходит ли этот новый боец в плавание?", img1)
 	if err != nil {
 		sugar.Fatalw("Message 1 failed", "error", err)
 	}
 	fmt.Printf("Assistant response (1): %s\n", resp1)
 
-	resp2, err := companion.SendMessageWithImage(ctx, convID, "А поплывём на этом", img2)
+	resp2, err := companion.SendMessageWithImage(ctx, convID, "Что это за корабль и какую роль на нём будет играть наш боец?", img2)
 	if err != nil {
 		sugar.Fatalw("Message 2 failed", "error", err)
 	}

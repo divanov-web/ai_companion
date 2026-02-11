@@ -13,3 +13,5 @@
 - [Инструкции по документации](./writing_guidelines.md)
 - [Общая архитектура](./architecture_overall.md)
 - [Архитектура приложения](./app_architecture.md)
+- [Архитектура слоя service](./architecture_service.md)
+- [Архитектура слоя adapter](./architecture_adapter.md)

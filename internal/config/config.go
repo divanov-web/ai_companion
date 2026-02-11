@@ -11,6 +11,7 @@ type Config struct {
 	DebugMode bool `env:"DEBUG_MODE"` //Режим дебага
 }
 
+// NewConfig загружает конфигурацию приложения.
 func NewConfig() *Config {
 	_ = godotenv.Load()
 

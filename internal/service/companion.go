@@ -3,7 +3,7 @@ package service
 import "context"
 
 type ConversationAdapter interface {
-	NewConversation(ctx context.Context) (string, error)
+	NewConversation(ctx context.Context, contextText string, metadata map[string]string) (string, error)
 }
 
 type MessageAdapter interface {
@@ -15,14 +15,17 @@ type Companion struct {
 	messages      MessageAdapter
 }
 
+// NewCompanion создаёт сервис оркестрации.
 func NewCompanion(conversations ConversationAdapter, messages MessageAdapter) *Companion {
 	return &Companion{conversations: conversations, messages: messages}
 }
 
-func (c *Companion) StartConversation(ctx context.Context) (string, error) {
-	return c.conversations.NewConversation(ctx)
+// StartConversation создаёт новый диалог.
+func (c *Companion) StartConversation(ctx context.Context, contextText string, metadata map[string]string) (string, error) {
+	return c.conversations.NewConversation(ctx, contextText, metadata)
 }
 
+// SendMessageWithImage отправляет сообщение с картинкой.
 func (c *Companion) SendMessageWithImage(ctx context.Context, conversationID string, text string, imageDataURL string) (string, error) {
 	return c.messages.SendTextWithImage(ctx, conversationID, text, imageDataURL)
 }

@@ -11,10 +11,12 @@ type Adapter struct {
 	client *openai.Client
 }
 
+// New создаёт адаптер сообщений.
 func New(client *openai.Client) *Adapter {
 	return &Adapter{client: client}
 }
 
+// SendTextWithImage отправляет текст и картинку в диалог.
 func (a *Adapter) SendTextWithImage(ctx context.Context, conversationID string, text string, imageDataURL string) (string, error) {
 	params := responses.ResponseNewParams{
 		Model: openai.ChatModelGPT4o,
