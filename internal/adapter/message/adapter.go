@@ -1,7 +1,11 @@
 package message
 
 import (
+	"OpenAIClient/internal/service/image"
 	"context"
+	"encoding/base64"
+	"fmt"
+	"os"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
@@ -16,24 +20,26 @@ func New(client *openai.Client) *Adapter {
 	return &Adapter{client: client}
 }
 
-// SendTextWithImage отправляет текст и картинку в диалог.
-func (a *Adapter) SendTextWithImage(ctx context.Context, conversationID string, text string, imageDataURL string) (string, error) {
+// SendTextWithImage отправляет текст и картинки в диалог.
+func (a *Adapter) SendTextWithImage(ctx context.Context, conversationID string, text string, images []image.ProcessedImage) (string, error) {
+	content := make(responses.ResponseInputMessageContentListParam, 0, len(images)+1)
+	content = append(content, responses.ResponseInputContentParamOfInputText(text))
+	for _, img := range images {
+		dataURL, err := makeImageDataURL(img)
+		if err != nil {
+			return "", err
+		}
+		imageParam := responses.ResponseInputContentParamOfInputImage(responses.ResponseInputImageDetailAuto)
+		imageParam.OfInputImage.ImageURL = openai.String(dataURL)
+		content = append(content, imageParam)
+	}
+
 	params := responses.ResponseNewParams{
 		Model: openai.ChatModelGPT4o,
 		Input: responses.ResponseNewParamsInputUnion{
 			OfInputItemList: responses.ResponseInputParam{
 				responses.ResponseInputItemParamOfMessage(
-					responses.ResponseInputMessageContentListParam{
-						{
-							OfInputText: &responses.ResponseInputTextParam{Text: text},
-						},
-						{
-							OfInputImage: &responses.ResponseInputImageParam{
-								Detail:   responses.ResponseInputImageDetailAuto,
-								ImageURL: openai.String(imageDataURL),
-							},
-						},
-					},
+					content,
 					responses.EasyInputMessageRoleUser,
 				),
 			},
@@ -49,4 +55,22 @@ func (a *Adapter) SendTextWithImage(ctx context.Context, conversationID string, 
 	}
 
 	return resp.OutputText(), nil
+}
+
+func makeImageDataURL(img image.ProcessedImage) (string, error) {
+	contentType := img.MimeType
+	if contentType == "" {
+		contentType = "image/jpeg"
+	}
+
+	data, err := os.ReadFile(img.Path)
+	if err != nil {
+		return "", err
+	}
+
+	if len(data) == 0 {
+		return "", fmt.Errorf("image file is empty: %s", img.Path)
+	}
+
+	return fmt.Sprintf("data:%s;base64,%s", contentType, base64.StdEncoding.EncodeToString(data)), nil
 }

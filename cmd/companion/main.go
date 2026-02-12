@@ -5,13 +5,9 @@ import (
 	"OpenAIClient/internal/adapter/message"
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service"
+	"OpenAIClient/internal/service/image"
 	"context"
-	"encoding/base64"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/openai/openai-go/v3"
 	"go.uber.org/zap"
@@ -44,42 +40,11 @@ func main() {
 		"DebugMode", cfg.DebugMode,
 	)
 
-	_ = cfg
-
 	convAdapter := conversation.New(&oClient)
 	msgAdapter := message.New(&oClient)
 	companion := service.NewCompanion(convAdapter, msgAdapter)
 
-	mkImageDataURL := func(path string) (string, error) {
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return "", err
-		}
-
-		switch strings.ToLower(filepath.Ext(path)) {
-		case ".png":
-			return fmt.Sprintf("data:image/png;base64,%s", base64.StdEncoding.EncodeToString(b)), nil
-		case ".jpg", ".jpeg":
-			return fmt.Sprintf("data:image/jpeg;base64,%s", base64.StdEncoding.EncodeToString(b)), nil
-		default:
-			return "", fmt.Errorf("unsupported image extension: %s", filepath.Ext(path))
-		}
-	}
-
-	tryLoad := func(paths ...string) (string, error) {
-		var lastErr error
-		for _, p := range paths {
-			dataURL, err := mkImageDataURL(p)
-			if err == nil {
-				return dataURL, nil
-			}
-			lastErr = err
-		}
-		return "", errors.Join(errors.New("failed to load image"), lastErr)
-	}
-
-	startContext := "Ты играешь роль старшего помощника, я капитан корабля. У тебя манера речи и лексикон как у стереотипного пирата." +
-		"Твои ответы должны быть короткие 1-2 предложения."
+	startContext := cfg.StartPrompt
 	metadata := map[string]string{
 		"ship":   "Громовержец",
 		"battle": "оценка экипажа",
@@ -89,24 +54,19 @@ func main() {
 		sugar.Fatalw("Failed to start conversation", "error", err)
 	}
 
-	img1, err := tryLoad("images\\1.jpg", "images\\1.jpeg", "images\\1.png")
+	processor := image.NewProcessor("images\\processed")
+	img1, err := processor.Process("images\\sharex\\2026-02-12_12-54-31-656.jpg")
 	if err != nil {
-		sugar.Fatalw("Failed to load image 1", "error", err)
+		sugar.Fatalw("Failed to process image 1", "error", err)
 	}
-	img2, err := tryLoad("images\\2.jpg", "images\\2.jpeg", "images\\2.png")
+	img2, err := processor.Process("images\\sharex\\2026-02-12_12-54-21-652.jpg")
 	if err != nil {
-		sugar.Fatalw("Failed to load image 2", "error", err)
+		sugar.Fatalw("Failed to process image 2", "error", err)
 	}
 
-	resp1, err := companion.SendMessageWithImage(ctx, convID, "Подходит ли этот новый боец в плавание?", img1)
+	resp, err := companion.SendMessageWithImage(ctx, convID, "какой результат боя?", []image.ProcessedImage{img1, img2})
 	if err != nil {
-		sugar.Fatalw("Message 1 failed", "error", err)
+		sugar.Fatalw("Message failed", "error", err)
 	}
-	fmt.Printf("Assistant response (1): %s\n", resp1)
-
-	resp2, err := companion.SendMessageWithImage(ctx, convID, "Что это за корабль и какую роль на нём будет играть наш боец?", img2)
-	if err != nil {
-		sugar.Fatalw("Message 2 failed", "error", err)
-	}
-	fmt.Printf("Assistant response (2): %s\n", resp2)
+	fmt.Printf("Assistant response: %s\n", resp)
 }
