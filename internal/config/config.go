@@ -13,6 +13,7 @@ type Config struct {
 	ImagesSourceDir    string `env:"IMAGES_SOURCE_DIR"`    // Папка с исходными изображениями
 	ImagesProcessedDir string `env:"IMAGES_PROCESSED_DIR"` // Папка для сохранения обработанных изображений
 	ImagesToPick       int    `env:"IMAGES_TO_PICK"`       // Сколько последних изображений брать
+	ImagesTTLSeconds   int    `env:"IMAGES_TTL_SECONDS"`   // Время, через которое картинки считаются старыми и их надо удалить, в секундах
 }
 
 // Defaults возвращает конфигурацию с предустановленными значениями по умолчанию.
@@ -24,6 +25,7 @@ func Defaults() *Config {
 		ImagesSourceDir:    "images\\sharex",
 		ImagesProcessedDir: "images\\processed",
 		ImagesToPick:       3,
+		ImagesTTLSeconds:   60,
 	}
 }
 
@@ -40,6 +42,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.ImagesSourceDir, "images-source-dir", cfg.ImagesSourceDir, "путь к папке с исходными изображениями")
 	flag.StringVar(&cfg.ImagesProcessedDir, "images-processed-dir", cfg.ImagesProcessedDir, "путь к папке для сохранения обработанных изображений")
 	flag.IntVar(&cfg.ImagesToPick, "images-to-pick", cfg.ImagesToPick, "количество последних изображений для отправки")
+	flag.IntVar(&cfg.ImagesTTLSeconds, "images-ttl-seconds", cfg.ImagesTTLSeconds, "время, через которое картинки считаются старыми и их надо удалить, в секундах")
 	flag.Parse()
 
 	return cfg

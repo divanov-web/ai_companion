@@ -6,6 +6,7 @@
 - [Общая архитектура](./architecture_overall.md)
 - [Слой Service](../internal/service/readme.md)
 - [Слой Adapter](../internal/adapter/readme.md)
+- [Слой сценариев(приложений) App](../internal/app/readme.md)
 
 ## Термины
 - Сообщение — один запрос/ответ в Responses API.

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -67,6 +68,7 @@ func (r *Requester) RunOnce(ctx context.Context, text string) (string, error) {
 			"ship":   "Громовержец",
 			"battle": "оценка экипажа",
 		}
+		r.logger.Infow("Создание диалога")
 		convID, cerr := r.companion.StartConversation(ctx, startContext, metadata)
 		if cerr != nil {
 			return "", fmt.Errorf("failed to start conversation: %w", cerr)
@@ -74,10 +76,15 @@ func (r *Requester) RunOnce(ctx context.Context, text string) (string, error) {
 		r.conversationID = convID
 	}
 
-	// 4. Отправить сообщение с изображениями
+	// 4. Очистка старых изображений в исходной и обработанной папках
+	ttl := time.Duration(r.cfg.ImagesTTLSeconds) * time.Second
+	r.cleanupOldImages([]string{r.cfg.ImagesSourceDir, r.cfg.ImagesProcessedDir}, ttl)
+
+	// 5. Отправить сообщение с изображениями
 	// Перед отправкой выведем текст сообщения
-	r.logger.Infow("Отправка..", "text", text)
+	r.logger.Infow("Отправка сообщения", "text", text)
 	return r.companion.SendMessageWithImage(ctx, r.conversationID, text, processed)
+
 }
 
 func (r *Requester) pickLastImages(dir string, n int) ([]string, error) {
@@ -130,4 +137,52 @@ func (r *Requester) pickLastImages(dir string, n int) ([]string, error) {
 		out = append(out, files[i].path)
 	}
 	return out, nil
+}
+
+// cleanupOldImages удаляет файлы изображений старше ttl в указанных директориях.
+func (r *Requester) cleanupOldImages(dirs []string, ttl time.Duration) {
+	if ttl <= 0 {
+		return
+	}
+	deadline := time.Now().Add(-ttl)
+	exts := []string{".jpg", ".jpeg"}
+
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			r.logger.Warnw("Не удалось прочитать директорию для очистки", "dir", dir, "error", err)
+			continue
+		}
+
+		removed := 0
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			lower := strings.ToLower(name)
+			if slices.IndexFunc(exts, func(ext string) bool { return strings.HasSuffix(lower, ext) }) == -1 {
+				continue
+			}
+			fi, statErr := e.Info()
+			if statErr != nil {
+				r.logger.Warnw("Не удалось получить информацию о файле при очистке", "name", name, "error", statErr)
+				continue
+			}
+			if fi.ModTime().Before(deadline) {
+				full := filepath.Join(dir, name)
+				if err := os.Remove(full); err != nil {
+					r.logger.Warnw("Не удалось удалить старый файл", "path", full, "error", err)
+					continue
+				}
+				removed++
+			}
+		}
+		if removed > 0 {
+			r.logger.Infow("Очистка старых изображений выполнена", "dir", dir, "removed", removed, "before", deadline.Format(time.RFC3339))
+		}
+	}
 }
