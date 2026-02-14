@@ -1,4 +1,4 @@
-package service
+package companion
 
 import (
 	"OpenAIClient/internal/service/image"

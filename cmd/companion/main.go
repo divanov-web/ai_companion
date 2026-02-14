@@ -5,7 +5,7 @@ import (
 	"OpenAIClient/internal/adapter/message"
 	"OpenAIClient/internal/app/requester"
 	"OpenAIClient/internal/config"
-	"OpenAIClient/internal/service"
+	"OpenAIClient/internal/service/companion"
 	"OpenAIClient/internal/service/tts/player"
 	"OpenAIClient/internal/service/tts/yandex"
 	"context"
@@ -43,9 +43,9 @@ func main() {
 
 	convAdapter := conversation.New(&oClient)
 	msgAdapter := message.New(&oClient)
-	companion := service.NewCompanion(convAdapter, msgAdapter)
+	comp := companion.NewCompanion(convAdapter, msgAdapter)
 
-	req := requester.New(cfg, companion, sugar)
+	req := requester.New(cfg, comp, sugar)
 	resp, err := req.SendMessage(ctx, "какой результат боя? на каком корабле я играл? предположи, почему проиграли? сейчас можно ответить в 1-3 предложений.")
 	if err != nil {
 		sugar.Fatalw("Request failed", "error", err)

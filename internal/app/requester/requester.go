@@ -2,7 +2,7 @@ package requester
 
 import (
 	"OpenAIClient/internal/config"
-	"OpenAIClient/internal/service"
+	"OpenAIClient/internal/service/companion"
 	"OpenAIClient/internal/service/image"
 	"cmp"
 	"context"
@@ -19,13 +19,13 @@ import (
 
 type Requester struct {
 	cfg            *config.Config
-	companion      *service.Companion
+	companion      *companion.Companion
 	processor      *image.Processor
 	logger         *zap.SugaredLogger
 	conversationID string
 }
 
-func New(cfg *config.Config, companion *service.Companion, logger *zap.SugaredLogger) *Requester {
+func New(cfg *config.Config, companion *companion.Companion, logger *zap.SugaredLogger) *Requester {
 	return &Requester{
 		cfg:       cfg,
 		companion: companion,
