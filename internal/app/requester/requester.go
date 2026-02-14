@@ -34,8 +34,8 @@ func New(cfg *config.Config, companion *service.Companion, logger *zap.SugaredLo
 	}
 }
 
-// RunOnce выполняет сценарий «Послать запрос» один раз.
-func (r *Requester) RunOnce(ctx context.Context, text string) (string, error) {
+// SendMessage выполняет сценарий «Послать запрос» один раз.
+func (r *Requester) SendMessage(ctx context.Context, text string) (string, error) {
 	// 1. Найти N последних картинок
 	paths, err := r.pickLastImages(r.cfg.ImagesSourceDir, r.cfg.ImagesToPick)
 	if err != nil {
@@ -141,6 +141,11 @@ func (r *Requester) pickLastImages(dir string, n int) ([]string, error) {
 
 // cleanupOldImages удаляет файлы изображений старше ttl в указанных директориях.
 func (r *Requester) cleanupOldImages(dirs []string, ttl time.Duration) {
+	// В режиме отладки не удаляем никакие изображения
+	if r.cfg.DebugMode {
+		r.logger.Infow("Режим DEBUG: очистка старых изображений отключена", "dirs", dirs, "ttl", ttl.String())
+		return
+	}
 	if ttl <= 0 {
 		return
 	}

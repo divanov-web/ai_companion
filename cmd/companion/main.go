@@ -6,8 +6,9 @@ import (
 	"OpenAIClient/internal/app/requester"
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service"
+	"OpenAIClient/internal/service/tts/player"
+	"OpenAIClient/internal/service/tts/yandex"
 	"context"
-	"fmt"
 
 	"github.com/openai/openai-go/v3"
 	"go.uber.org/zap"
@@ -45,9 +46,18 @@ func main() {
 	companion := service.NewCompanion(convAdapter, msgAdapter)
 
 	req := requester.New(cfg, companion, sugar)
-	resp, err := req.RunOnce(ctx, "какой результат боя? на каком корабле я играл? предположи, почему проиграли? сейчас можно ответить в 4-6 предложений.")
+	resp, err := req.SendMessage(ctx, "какой результат боя? на каком корабле я играл? предположи, почему проиграли? сейчас можно ответить в 1-3 предложений.")
 	if err != nil {
 		sugar.Fatalw("Request failed", "error", err)
 	}
-	fmt.Printf("Assistant response: %s\n", resp)
+
+	// Воспроизводим ответ ассистента через Yandex TTS
+	if resp != "" {
+		p := player.New()
+		yc := yandex.New(p)
+		sugar.Info(resp)
+		if err := yc.Synthesize(ctx, resp, cfg.YandexTTS); err != nil {
+			sugar.Fatalw("TTS playback failed", "error", err)
+		}
+	}
 }
