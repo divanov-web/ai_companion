@@ -19,7 +19,6 @@ type Config struct {
 
 	// Настройки таймера (Scheduler)
 	TimerIntervalSeconds   int    `env:"TIMER_INTERVAL_SECONDS"`   // Базовый интервал между тиками
-	TimerJitterPercent     int    `env:"TIMER_JITTER_PERCENT"`     // Джиттер в процентах от интервала (+/-), 0-100
 	TickTimeoutSeconds     int    `env:"TICK_TIMEOUT_SECONDS"`     // Таймаут одного тика
 	OverlapPolicy          string `env:"OVERLAP_POLICY"`           // Политика при наложении: skip|preempt
 	MaxConsecutiveErrors   int    `env:"MAX_CONSECUTIVE_ERRORS"`   // Сколько ошибок подряд до остановки приложения
@@ -39,7 +38,6 @@ func Defaults() *Config {
 		ImagesTTLSeconds:   60,
 		// Таймер по умолчанию
 		TimerIntervalSeconds:   10,
-		TimerJitterPercent:     10,
 		TickTimeoutSeconds:     60,
 		OverlapPolicy:          "skip", //`skip`|`preempt`
 		MaxConsecutiveErrors:   3,
@@ -71,7 +69,6 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.ImagesTTLSeconds, "images-ttl-seconds", cfg.ImagesTTLSeconds, "время, через которое картинки считаются старыми и их надо удалить, в секундах")
 	// Таймер
 	flag.IntVar(&cfg.TimerIntervalSeconds, "timer-interval-seconds", cfg.TimerIntervalSeconds, "базовый интервал таймера в секундах")
-	flag.IntVar(&cfg.TimerJitterPercent, "timer-jitter-percent", cfg.TimerJitterPercent, "джиттер таймера в процентах (0-100)")
 	flag.IntVar(&cfg.TickTimeoutSeconds, "tick-timeout-seconds", cfg.TickTimeoutSeconds, "таймаут одного тика в секундах")
 	flag.StringVar(&cfg.OverlapPolicy, "overlap-policy", cfg.OverlapPolicy, "политика наложения тиков: skip|preempt")
 	flag.IntVar(&cfg.MaxConsecutiveErrors, "max-consecutive-errors", cfg.MaxConsecutiveErrors, "количество последовательных ошибок до остановки приложения")

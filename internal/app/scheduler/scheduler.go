@@ -7,7 +7,6 @@ import (
 	"OpenAIClient/internal/service/tts/yandex"
 	"context"
 	"errors"
-	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -50,12 +49,12 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 
 	// Ждём первый интервал перед первой сработкой
-	s.logger.Infow("Scheduler started", "interval", base.String(), "jitter%", s.cfg.TimerJitterPercent, "overlap", s.cfg.OverlapPolicy)
+	s.logger.Infow("Scheduler started", "interval", base.String(), "overlap", s.cfg.OverlapPolicy)
 
 	// Основной цикл без использования time.Ticker, чтобы учитывать джиттер на каждый тик
 	for {
-		// Рассчитываем задержку с джиттером
-		delay := s.withJitter(base)
+		// Фиксированная задержка без джиттера
+		delay := base
 
 		select {
 		case <-ctx.Done():
@@ -148,23 +147,4 @@ func (s *Scheduler) stopPrev() {
 		s.cancelPrev()
 		s.cancelPrev = nil
 	}
-}
-
-func (s *Scheduler) withJitter(base time.Duration) time.Duration {
-	p := s.cfg.TimerJitterPercent
-	if p <= 0 {
-		return base
-	}
-	if p > 100 {
-		p = 100
-	}
-	// random in [-p, +p] percent
-	span := float64(p) / 100.0
-	r := (rand.Float64()*2 - 1) * span // -span..+span
-	jitter := time.Duration(float64(base) * r)
-	d := base + jitter
-	if d < time.Second {
-		d = time.Second
-	}
-	return d
 }
