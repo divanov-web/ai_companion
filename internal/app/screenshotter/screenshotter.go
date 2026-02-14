@@ -1,0 +1,108 @@
+package screenshotter
+
+import (
+	"OpenAIClient/internal/config"
+	"context"
+	"image"
+	"image/draw"
+	"image/jpeg"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/kbinani/screenshot"
+	"go.uber.org/zap"
+)
+
+type Screenshotter struct {
+	cfg    *config.Config
+	logger *zap.SugaredLogger
+}
+
+func New(cfg *config.Config, logger *zap.SugaredLogger) *Screenshotter {
+	return &Screenshotter{cfg: cfg, logger: logger}
+}
+
+// Run запускает бесконечный цикл снятия скриншотов всего экрана.
+// Блокирующий метод; обычно запускается в отдельной горутине.
+func (s *Screenshotter) Run(ctx context.Context) {
+	interval := time.Duration(max(1, s.cfg.ScreenshotIntervalSeconds)) * time.Second
+	t := time.NewTicker(interval)
+	defer t.Stop()
+
+	// Гарантируем, что директория существует
+	if err := os.MkdirAll(s.cfg.ImagesSourceDir, 0o755); err != nil {
+		s.logger.Errorw("Failed to create ImagesSourceDir for screenshots", "dir", s.cfg.ImagesSourceDir, "error", err)
+		// продолжаем — возможно директорию поправят вручную
+	}
+
+	s.logger.Infow("Screenshotter started", "interval", interval.String(), "outputDir", s.cfg.ImagesSourceDir)
+	// Немедленно делаем первый кадр
+	s.captureOnce()
+
+	for {
+		select {
+		case <-ctx.Done():
+			s.logger.Infow("Screenshotter stopped", "reason", ctx.Err())
+			return
+		case <-t.C:
+			s.captureOnce()
+		}
+	}
+}
+
+func (s *Screenshotter) captureOnce() {
+	n := screenshot.NumActiveDisplays()
+	if n <= 0 {
+		s.logger.Warnw("No active displays detected for screenshot")
+		return
+	}
+
+	// Вычисляем объединённые границы всех мониторов
+	union := image.Rect(0, 0, 0, 0)
+	for i := range n {
+		b := screenshot.GetDisplayBounds(i)
+		if i == 0 {
+			union = b
+			continue
+		}
+		union = union.Union(b)
+	}
+
+	canvas := image.NewRGBA(union)
+	for i := range n {
+		b := screenshot.GetDisplayBounds(i)
+		img, err := screenshot.CaptureRect(b)
+		if err != nil {
+			s.logger.Errorw("Failed to capture display", "index", i, "error", err)
+			continue
+		}
+		// Копируем в холст со смещением
+		dstPoint := image.Pt(b.Min.X-union.Min.X, b.Min.Y-union.Min.Y)
+		dstRect := image.Rectangle{Min: dstPoint, Max: dstPoint.Add(b.Size())}
+		draw.Draw(canvas, dstRect, img, image.Point{}, draw.Src)
+	}
+
+	// Сохраняем JPEG
+	filename := time.Now().Format("2006-01-02_15-04-05-000") + ".jpg"
+	fullPath := filepath.Join(s.cfg.ImagesSourceDir, filename)
+	file, err := os.Create(fullPath)
+	if err != nil {
+		s.logger.Errorw("Failed to create screenshot file", "path", fullPath, "error", err)
+		return
+	}
+	defer func() {
+		if cerr := file.Close(); cerr != nil {
+			s.logger.Errorw("Failed to close screenshot file", "path", fullPath, "error", cerr)
+		}
+	}()
+
+	if err := jpeg.Encode(file, canvas, &jpeg.Options{Quality: 85}); err != nil {
+		s.logger.Errorw("Failed to encode screenshot to JPEG", "path", fullPath, "error", err)
+		_ = file.Close()
+		_ = os.Remove(fullPath)
+		return
+	}
+
+	//s.logger.Debugw("Screenshot saved", "path", fullPath, "size", fmt.Sprintf("%dx%d", canvas.Bounds().Dx(), canvas.Bounds().Dy()))
+}

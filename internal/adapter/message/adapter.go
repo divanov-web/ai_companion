@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/openai/openai-go/v3"
@@ -23,8 +24,8 @@ func New(client *openai.Client, logger *zap.SugaredLogger) *Adapter {
 	return &Adapter{client: client, logger: logger}
 }
 
-// SendTextWithImage отправляет текст и картинки в диалог.
-func (a *Adapter) SendTextWithImage(ctx context.Context, conversationID string, text string, images []image.ProcessedImage) (string, error) {
+// SendTextWithImage отправляет системное сообщение (если задано), затем текст пользователя и картинки в диалог.
+func (a *Adapter) SendTextWithImage(ctx context.Context, conversationID string, systemText string, text string, images []image.ProcessedImage) (string, error) {
 	content := make(responses.ResponseInputMessageContentListParam, 0, len(images)+1)
 	content = append(content, responses.ResponseInputContentParamOfInputText(text))
 	for _, img := range images {
@@ -37,16 +38,28 @@ func (a *Adapter) SendTextWithImage(ctx context.Context, conversationID string, 
 		content = append(content, imageParam)
 	}
 
+	// Формируем список input items: опционально системное сообщение + пользовательское сообщение
+	inputItems := make(responses.ResponseInputParam, 0, 2)
+	if st := strings.TrimSpace(systemText); st != "" {
+		inputItems = append(inputItems,
+			responses.ResponseInputItemParamOfMessage(
+				responses.ResponseInputMessageContentListParam{
+					{OfInputText: &responses.ResponseInputTextParam{Text: st}},
+				},
+				responses.EasyInputMessageRoleSystem,
+			),
+		)
+	}
+	inputItems = append(inputItems,
+		responses.ResponseInputItemParamOfMessage(
+			content,
+			responses.EasyInputMessageRoleUser,
+		),
+	)
+
 	params := responses.ResponseNewParams{
 		Model: openai.ChatModelGPT4o,
-		Input: responses.ResponseNewParamsInputUnion{
-			OfInputItemList: responses.ResponseInputParam{
-				responses.ResponseInputItemParamOfMessage(
-					content,
-					responses.EasyInputMessageRoleUser,
-				),
-			},
-		},
+		Input: responses.ResponseNewParamsInputUnion{OfInputItemList: inputItems},
 	}
 	if conversationID != "" {
 		params.Conversation = responses.ResponseNewParamsConversationUnion{OfString: openai.String(conversationID)}

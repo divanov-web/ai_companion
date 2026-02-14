@@ -71,14 +71,11 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 	// 3. Создать диалог при необходимости
 	if r.conversationID == "" {
 		startContext := strings.TrimSpace(r.cfg.StartPrompt)
-		if sc := strings.TrimSpace(r.cfg.StartCharacter); sc != "" {
-			startContext += "\n\n" + sc
-		}
 		metadata := map[string]string{
 			"game":     "Мир кораблей",
 			"game_eng": "Mir korabley",
 		}
-		r.logger.Infow(startContext)
+		r.logger.Infow("Запуск диалога")
 		convID, cerr := r.companion.StartConversation(ctx, startContext, metadata)
 		if cerr != nil {
 			return "", fmt.Errorf("failed to start conversation: %w", cerr)
@@ -93,7 +90,7 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 
 	// 5. Отправить сообщение с изображениями
 	r.logger.Infow("Отправка сообщения", "count images", len(processed), "text", text)
-	resp, err := r.companion.SendMessageWithImage(ctx, r.conversationID, text, processed)
+	resp, err := r.companion.SendMessageWithImage(ctx, r.conversationID, r.cfg.StartCharacter, text, processed)
 	if err != nil {
 		return "", err
 	}

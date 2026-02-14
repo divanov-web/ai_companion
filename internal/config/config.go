@@ -8,15 +8,17 @@ import (
 )
 
 type Config struct {
-	DebugMode          bool            `env:"DEBUG_MODE"`           //Режим дебага
-	StartPrompt        string          `env:"START_PROMPT"`         //Текст стартового промпта диалога
-	StartCharacter     string          `env:"START_CHARACTER"`      // Характер/стиль персонажа, будет конкатенирован со стартовым промптом
-	FixedMessage       string          `env:"FIXED_MESSAGE"`        // Фиксированный текст сообщения на каждом тике таймера
-	ImagesSourceDir    string          `env:"IMAGES_SOURCE_DIR"`    // Папка с исходными изображениями
-	ImagesProcessedDir string          `env:"IMAGES_PROCESSED_DIR"` // Папка для сохранения обработанных изображений
-	ImagesToPick       int             `env:"IMAGES_TO_PICK"`       // Сколько последних изображений брать
-	ImagesTTLSeconds   int             `env:"IMAGES_TTL_SECONDS"`   // Время, через которое картинки считаются старыми и их надо удалить, в секундах
-	YandexTTS          YandexTTSConfig // Конфигурация TTS (Yandex SpeechKit)
+	DebugMode          bool   `env:"DEBUG_MODE"`           //Режим дебага
+	StartPrompt        string `env:"START_PROMPT"`         //Текст стартового промпта диалога
+	StartCharacter     string `env:"START_CHARACTER"`      // Характер/стиль персонажа, будет конкатенирован со стартовым промптом
+	FixedMessage       string `env:"FIXED_MESSAGE"`        // Фиксированный текст сообщения на каждом тике таймера
+	ImagesSourceDir    string `env:"IMAGES_SOURCE_DIR"`    // Папка с исходными изображениями
+	ImagesProcessedDir string `env:"IMAGES_PROCESSED_DIR"` // Папка для сохранения обработанных изображений
+	ImagesToPick       int    `env:"IMAGES_TO_PICK"`       // Сколько последних изображений брать
+	ImagesTTLSeconds   int    `env:"IMAGES_TTL_SECONDS"`   // Время, через которое картинки считаются старыми и их надо удалить, в секундах
+	// Скриншоттер
+	ScreenshotIntervalSeconds int             `env:"SCREENSHOT_INTERVAL_SECONDS"` // Периодичность снятия скриншотов всего экрана, в секундах
+	YandexTTS                 YandexTTSConfig // Конфигурация TTS (Yandex SpeechKit)
 
 	// Настройки таймера (Scheduler)
 	TimerIntervalSeconds   int    `env:"TIMER_INTERVAL_SECONDS"`   // Базовый интервал между тиками
@@ -30,14 +32,15 @@ type Config struct {
 // Эти значения перекрываются .env, переменными окружения и флагами CLI.
 func Defaults() *Config {
 	return &Config{
-		DebugMode:          false,
-		StartPrompt:        "Ты помощник капитана и озвучиваешь то, что видишь на картинках",
-		StartCharacter:     "", // по умолчанию не добавляем отдельный характер
-		FixedMessage:       "доложи статус",
-		ImagesSourceDir:    "images\\sharex",
-		ImagesProcessedDir: "images\\processed",
-		ImagesToPick:       3,
-		ImagesTTLSeconds:   60,
+		DebugMode:                 false,
+		StartPrompt:               "Ты помощник капитана и озвучиваешь то, что видишь на картинках",
+		StartCharacter:            "", // по умолчанию не добавляем отдельный характер
+		FixedMessage:              "доложи статус",
+		ImagesSourceDir:           "images\\sharex",
+		ImagesProcessedDir:        "images\\processed",
+		ImagesToPick:              3,
+		ImagesTTLSeconds:          60,
+		ScreenshotIntervalSeconds: 2,
 		// Таймер по умолчанию
 		TimerIntervalSeconds:   5,
 		TickTimeoutSeconds:     60,
@@ -71,6 +74,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.ImagesProcessedDir, "images-processed-dir", cfg.ImagesProcessedDir, "путь к папке для сохранения обработанных изображений")
 	flag.IntVar(&cfg.ImagesToPick, "images-to-pick", cfg.ImagesToPick, "количество последних изображений для отправки")
 	flag.IntVar(&cfg.ImagesTTLSeconds, "images-ttl-seconds", cfg.ImagesTTLSeconds, "время, через которое картинки считаются старыми и их надо удалить, в секундах")
+	// Скриншоттер
+	flag.IntVar(&cfg.ScreenshotIntervalSeconds, "screenshot-interval-seconds", cfg.ScreenshotIntervalSeconds, "периодичность снятия скриншотов всего экрана, в секундах")
 	// Таймер
 	flag.IntVar(&cfg.TimerIntervalSeconds, "timer-interval-seconds", cfg.TimerIntervalSeconds, "базовый интервал таймера в секундах")
 	flag.IntVar(&cfg.TickTimeoutSeconds, "tick-timeout-seconds", cfg.TickTimeoutSeconds, "таймаут одного тика в секундах")

@@ -5,6 +5,7 @@ import (
 	"OpenAIClient/internal/adapter/message"
 	"OpenAIClient/internal/app/requester"
 	"OpenAIClient/internal/app/scheduler"
+	"OpenAIClient/internal/app/screenshotter"
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service/companion"
 	"context"
@@ -45,6 +46,9 @@ func main() {
 	comp := companion.NewCompanion(convAdapter, msgAdapter)
 
 	req := requester.New(cfg, comp, sugar)
+	// запускаем скриншоттер в отдельной горутине
+	scr := screenshotter.New(cfg, sugar)
+	go scr.Run(ctx)
 	sch := scheduler.New(cfg, req, sugar)
 	if err := sch.Run(ctx); err != nil {
 		sugar.Fatalw("Scheduler stopped with error", "error", err)

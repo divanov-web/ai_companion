@@ -10,7 +10,7 @@ type ConversationAdapter interface {
 }
 
 type MessageAdapter interface {
-	SendTextWithImage(ctx context.Context, conversationID string, text string, images []image.ProcessedImage) (string, error)
+	SendTextWithImage(ctx context.Context, conversationID string, systemText string, text string, images []image.ProcessedImage) (string, error)
 }
 
 type Companion struct {
@@ -29,6 +29,6 @@ func (c *Companion) StartConversation(ctx context.Context, contextText string, m
 }
 
 // SendMessageWithImage отправляет сообщение с картинкой.
-func (c *Companion) SendMessageWithImage(ctx context.Context, conversationID string, text string, images []image.ProcessedImage) (string, error) {
-	return c.messages.SendTextWithImage(ctx, conversationID, text, images)
+func (c *Companion) SendMessageWithImage(ctx context.Context, conversationID string, systemText string, text string, images []image.ProcessedImage) (string, error) {
+	return c.messages.SendTextWithImage(ctx, conversationID, systemText, text, images)
 }
