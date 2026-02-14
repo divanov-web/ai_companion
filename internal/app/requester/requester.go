@@ -23,6 +23,7 @@ type Requester struct {
 	processor      *image.Processor
 	logger         *zap.SugaredLogger
 	conversationID string
+	requestCount   int // количество успешных отправок в текущем диалоге
 }
 
 func New(cfg *config.Config, companion *companion.Companion, logger *zap.SugaredLogger) *Requester {
@@ -36,6 +37,12 @@ func New(cfg *config.Config, companion *companion.Companion, logger *zap.Sugared
 
 // SendMessage выполняет сценарий «Послать запрос» один раз.
 func (r *Requester) SendMessage(ctx context.Context, text string) (string, error) {
+	// Ротация диалога: каждые N успешных сообщений создаём новый диалог
+	if r.conversationID != "" && r.cfg.RotateConversationEach > 0 && r.requestCount >= r.cfg.RotateConversationEach {
+		r.logger.Infow("Ротация диалога по счётчику", "count", r.requestCount, "threshold", r.cfg.RotateConversationEach)
+		r.conversationID = ""
+		r.requestCount = 0
+	}
 	// 1. Найти N последних картинок
 	paths, err := r.pickLastImages(r.cfg.ImagesSourceDir, r.cfg.ImagesToPick)
 	if err != nil {
@@ -65,8 +72,8 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 	if r.conversationID == "" {
 		startContext := r.cfg.StartPrompt
 		metadata := map[string]string{
-			"ship":   "Громовержец",
-			"battle": "оценка экипажа",
+			"game":     "Мир кораблей",
+			"game_eng": "Mir korabley",
 		}
 		r.logger.Infow("Создание диалога")
 		convID, cerr := r.companion.StartConversation(ctx, startContext, metadata)
@@ -74,6 +81,7 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 			return "", fmt.Errorf("failed to start conversation: %w", cerr)
 		}
 		r.conversationID = convID
+		r.requestCount = 0
 	}
 
 	// 4. Очистка старых изображений в исходной и обработанной папках
@@ -81,9 +89,13 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 	r.cleanupOldImages([]string{r.cfg.ImagesSourceDir, r.cfg.ImagesProcessedDir}, ttl)
 
 	// 5. Отправить сообщение с изображениями
-	// Перед отправкой выведем текст сообщения
-	r.logger.Infow("Отправка сообщения", "text", text)
-	return r.companion.SendMessageWithImage(ctx, r.conversationID, text, processed)
+	r.logger.Infow("Отправка сообщения", "count images", len(processed), "text", text)
+	resp, err := r.companion.SendMessageWithImage(ctx, r.conversationID, text, processed)
+	if err != nil {
+		return "", err
+	}
+	r.requestCount++
+	return resp, nil
 
 }
 
@@ -98,6 +110,13 @@ func (r *Requester) pickLastImages(dir string, n int) ([]string, error) {
 		}
 		return nil, err
 	}
+
+	// Ограничиваем свежесть изображений: не старше TickTimeoutSeconds
+	maxAge := time.Duration(r.cfg.TickTimeoutSeconds) * time.Second
+	if maxAge <= 0 {
+		maxAge = 30 * time.Second
+	}
+	cutoff := time.Now().Add(-maxAge)
 
 	type fileInfo struct {
 		path string
@@ -116,6 +135,10 @@ func (r *Requester) pickLastImages(dir string, n int) ([]string, error) {
 		fi, statErr := e.Info()
 		if statErr != nil {
 			r.logger.Warnw("Не удалось получить информацию о файле", "name", name, "error", statErr)
+			continue
+		}
+		// фильтруем по свежести: берём только файлы новее cutoff
+		if fi.ModTime().Before(cutoff) {
 			continue
 		}
 		files = append(files, fileInfo{path: filepath.Join(dir, name), mod: fi.ModTime().UnixNano()})
@@ -187,7 +210,7 @@ func (r *Requester) cleanupOldImages(dirs []string, ttl time.Duration) {
 			}
 		}
 		if removed > 0 {
-			r.logger.Infow("Очистка старых изображений выполнена", "dir", dir, "removed", removed, "before", deadline.Format(time.RFC3339))
+			//r.logger.Infow("Очистка старых изображений выполнена", "dir", dir, "removed", removed, "before", deadline.Format(time.RFC3339))
 		}
 	}
 }

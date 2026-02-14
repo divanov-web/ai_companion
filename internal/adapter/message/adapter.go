@@ -6,18 +6,21 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
+	"go.uber.org/zap"
 )
 
 type Adapter struct {
 	client *openai.Client
+	logger *zap.SugaredLogger
 }
 
 // New создаёт адаптер сообщений.
-func New(client *openai.Client) *Adapter {
-	return &Adapter{client: client}
+func New(client *openai.Client, logger *zap.SugaredLogger) *Adapter {
+	return &Adapter{client: client, logger: logger}
 }
 
 // SendTextWithImage отправляет текст и картинки в диалог.
@@ -49,7 +52,15 @@ func (a *Adapter) SendTextWithImage(ctx context.Context, conversationID string, 
 		params.Conversation = responses.ResponseNewParamsConversationUnion{OfString: openai.String(conversationID)}
 	}
 
+	start := time.Now()
+	a.logger.Infow("Запрос в OpenAI...")
 	resp, err := a.client.Responses.New(ctx, params)
+	dur := time.Since(start)
+	if err != nil {
+		a.logger.Errorw("Ошибка ответа OpenAI", "duration", dur.String(), "error", err)
+	} else {
+		a.logger.Infow("Ответ OpenAI получен", "duration", dur.String())
+	}
 	if err != nil {
 		return "", err
 	}

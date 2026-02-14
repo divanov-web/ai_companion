@@ -4,10 +4,9 @@ import (
 	"OpenAIClient/internal/adapter/conversation"
 	"OpenAIClient/internal/adapter/message"
 	"OpenAIClient/internal/app/requester"
+	"OpenAIClient/internal/app/scheduler"
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service/companion"
-	"OpenAIClient/internal/service/tts/player"
-	"OpenAIClient/internal/service/tts/yandex"
 	"context"
 
 	"github.com/openai/openai-go/v3"
@@ -41,23 +40,13 @@ func main() {
 		"DebugMode", cfg.DebugMode,
 	)
 
-	convAdapter := conversation.New(&oClient)
-	msgAdapter := message.New(&oClient)
+	convAdapter := conversation.New(&oClient, sugar)
+	msgAdapter := message.New(&oClient, sugar)
 	comp := companion.NewCompanion(convAdapter, msgAdapter)
 
 	req := requester.New(cfg, comp, sugar)
-	resp, err := req.SendMessage(ctx, "какой результат боя? на каком корабле я играл? предположи, почему проиграли? сейчас можно ответить в 1-3 предложений.")
-	if err != nil {
-		sugar.Fatalw("Request failed", "error", err)
-	}
-
-	// Воспроизводим ответ ассистента через Yandex TTS
-	if resp != "" {
-		p := player.New()
-		yc := yandex.New(p)
-		sugar.Info(resp)
-		if err := yc.Synthesize(ctx, resp, cfg.YandexTTS); err != nil {
-			sugar.Fatalw("TTS playback failed", "error", err)
-		}
+	sch := scheduler.New(cfg, req, sugar)
+	if err := sch.Run(ctx); err != nil {
+		sugar.Fatalw("Scheduler stopped with error", "error", err)
 	}
 }
