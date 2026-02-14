@@ -37,11 +37,11 @@ func Defaults() *Config {
 		ImagesToPick:       3,
 		ImagesTTLSeconds:   60,
 		// Таймер по умолчанию
-		TimerIntervalSeconds:   10,
+		TimerIntervalSeconds:   5,
 		TickTimeoutSeconds:     60,
 		OverlapPolicy:          "skip", //`skip`|`preempt`
 		MaxConsecutiveErrors:   3,
-		RotateConversationEach: 1,
+		RotateConversationEach: 3,
 		YandexTTS: YandexTTSConfig{
 			APIKey:  "", // ключ берём из .env/ENV, если пусто — будет ошибка при использовании
 			Voice:   "omazh",
