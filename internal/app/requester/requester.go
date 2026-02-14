@@ -70,12 +70,15 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 
 	// 3. Создать диалог при необходимости
 	if r.conversationID == "" {
-		startContext := r.cfg.StartPrompt
+		startContext := strings.TrimSpace(r.cfg.StartPrompt)
+		if sc := strings.TrimSpace(r.cfg.StartCharacter); sc != "" {
+			startContext += "\n\n" + sc
+		}
 		metadata := map[string]string{
 			"game":     "Мир кораблей",
 			"game_eng": "Mir korabley",
 		}
-		r.logger.Infow("Создание диалога")
+		r.logger.Infow(startContext)
 		convID, cerr := r.companion.StartConversation(ctx, startContext, metadata)
 		if cerr != nil {
 			return "", fmt.Errorf("failed to start conversation: %w", cerr)

@@ -2,7 +2,6 @@ package conversation
 
 import (
 	"context"
-	"time"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/conversations"
@@ -40,15 +39,15 @@ func (a *Adapter) NewConversation(ctx context.Context, contextText string, metad
 		params.Metadata = shared.Metadata(metadata)
 	}
 
-	start := time.Now()
-	a.logger.Infow("Создание OpenAI диалога...")
+	//start := time.Now()
+	//a.logger.Infow("Создание OpenAI диалога...")
 	conv, err := a.client.Conversations.New(ctx, params)
-	dur := time.Since(start)
+	/*dur := time.Since(start)
 	if err != nil {
 		a.logger.Errorw("Ошибка создания диалога OpenAI", "duration", dur.String(), "error", err)
 	} else {
 		a.logger.Infow("Диалог OpenAI создан", "duration", dur.String())
-	}
+	}*/
 	if err != nil {
 		return "", err
 	}

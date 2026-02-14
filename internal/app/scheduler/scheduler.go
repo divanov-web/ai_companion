@@ -35,7 +35,10 @@ type Scheduler struct {
 }
 
 func New(cfg *config.Config, req *requester.Requester, logger *zap.SugaredLogger) *Scheduler {
-	p := player.New()
+	// Конвертируем 0..100 (100 — без изменений) в dB диапазон [-20..0]
+	v := max(0, min(100, cfg.YandexTTS.Volume))
+	volDB := float64(v-100) / 5.0
+	p := player.NewWithVolume(volDB)
 	yc := yandex.New(p)
 	return &Scheduler{cfg: cfg, req: req, tts: yc, logger: logger}
 }
