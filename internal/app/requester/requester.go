@@ -1,13 +1,13 @@
 package requester
 
 import (
+	"OpenAIClient/internal/adapter/localconversation"
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service/companion"
 	"OpenAIClient/internal/service/image"
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -19,12 +19,11 @@ import (
 )
 
 type Requester struct {
-	cfg            *config.Config
-	companion      *companion.Companion
-	logger         *zap.SugaredLogger
-	conversationID string
-	requestCount   int // Количество успешных отправок в текущем диалоге
-	rnd            *rand.Rand
+	cfg       *config.Config
+	companion *companion.Companion
+	logger    *zap.SugaredLogger
+	localConv *localconversation.LocalConversation
+	rnd       *rand.Rand
 }
 
 func New(cfg *config.Config, companion *companion.Companion, logger *zap.SugaredLogger) *Requester {
@@ -32,18 +31,13 @@ func New(cfg *config.Config, companion *companion.Companion, logger *zap.Sugared
 		cfg:       cfg,
 		companion: companion,
 		logger:    logger,
+		localConv: localconversation.New("", cfg.MaxHistoryRecords),
 		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
 // SendMessage выполняет сценарий «Послать запрос» один раз.
 func (r *Requester) SendMessage(ctx context.Context, text string) (string, error) {
-	// Ротация диалога: каждые N успешных сообщений создаём новый диалог
-	if r.conversationID != "" && r.cfg.RotateConversationEach > 0 && r.requestCount >= r.cfg.RotateConversationEach {
-		r.logger.Infow("Ротация диалога по счётчику", "count", r.requestCount, "threshold", r.cfg.RotateConversationEach)
-		r.conversationID = ""
-		r.requestCount = 0
-	}
 	// 1. Найти N последних картинок
 	paths, err := r.pickLastImages(r.cfg.ImagesSourceDir, r.cfg.ImagesToPick)
 	if err != nil {
@@ -67,37 +61,35 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 		return "", nil
 	}
 
-	// 3. Создать диалог при необходимости
-	if r.conversationID == "" {
-		// Выбрать случайный характер из списка
-		characterPrompt := ""
-		if n := len(r.cfg.CharacterList); n > 0 {
-			characterPrompt = r.cfg.CharacterList[r.rnd.Intn(n)]
-		}
-
-		metadata := map[string]string{
-			"game":     "Мир кораблей",
-			"game_eng": "Mir korabley",
-		}
-		r.logger.Infow("Запуск диалога", "character", characterPrompt)
-		convID, cerr := r.companion.StartConversation(ctx, characterPrompt, r.cfg.StartPrompt, metadata)
-		if cerr != nil {
-			return "", fmt.Errorf("failed to start conversation: %w", cerr)
-		}
-		r.conversationID = convID
-		r.requestCount = 0
+	// 3. Подготовить системный текст: выбираем случайный характер из списка при каждом stateless-вызове
+	characterPrompt := ""
+	if n := len(r.cfg.CharacterList); n > 0 {
+		characterPrompt = r.cfg.CharacterList[r.rnd.Intn(n)]
 	}
 
 	// 4. Очистка старых изображений перенесена в scheduler (image.Cleaner)
 
-	// 5. Отправить сообщение с изображениями
-	r.logger.Infow("Отправка сообщения", "count images", len(processed), "text", text)
-	// Передавать пустой systemText: системный текст установлен при создании разговора
-	resp, err := r.companion.SendMessageWithImage(ctx, r.conversationID, "", text, processed)
+	// 5. Сформировать историю ответов с заголовком из конфига
+	history := r.localConv.History()
+	historyWithHeader := history
+	if len(history) > 0 {
+		header := r.cfg.HistoryHeader
+		if strings.TrimSpace(header) == "" {
+			header = "история предыдущих ответов AI:"
+		}
+		historyWithHeader = make([]string, 0, len(history)+1)
+		historyWithHeader = append(historyWithHeader, header)
+		historyWithHeader = append(historyWithHeader, history...)
+	}
+
+	// 6. Отправить сообщение с изображениями (stateless)
+	r.logger.Infow("Отправка сообщения", "text", text)
+	resp, err := r.companion.SendMessageWithImage(ctx, characterPrompt, r.cfg.StartPrompt, text, historyWithHeader, processed)
 	if err != nil {
 		return "", err
 	}
-	r.requestCount++
+	// Сохраняем ответ (локальный лимит истории применяется внутри localConv)
+	r.localConv.AppendResponse(resp)
 	return resp, nil
 
 }

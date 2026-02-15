@@ -9,23 +9,24 @@ import (
 )
 
 type Config struct {
-	DebugMode        bool     `env:"DEBUG_MODE"`                      //Режим дебага
-	StartPrompt      string   `env:"START_PROMPT"`                    //Текст стартового промпта диалога
-	CharacterList    []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
-	FixedMessage     []string `env:"FIXED_MESSAGE" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
-	ImagesSourceDir  string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
-	ImagesToPick     int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
-	ImagesTTLSeconds int      `env:"IMAGES_TTL_SECONDS"`              // Время, через которое картинки считаются старыми и их надо удалить, в секундах
+	DebugMode         bool     `env:"DEBUG_MODE"`                      //Режим дебага
+	StartPrompt       string   `env:"START_PROMPT"`                    //Текст стартового промпта диалога
+	CharacterList     []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
+	FixedMessage      []string `env:"FIXED_MESSAGE" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
+	ImagesSourceDir   string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
+	ImagesToPick      int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
+	ImagesTTLSeconds  int      `env:"IMAGES_TTL_SECONDS"`              // Время, через которое картинки считаются старыми и их надо удалить, в секундах
+	HistoryHeader     string   `env:"HISTORY_HEADER"`                  // Заголовок блока с историей ответов ИИ
+	MaxHistoryRecords int      `env:"MAX_HISTORY_RECORDS"`             // Максимум хранимых ответов ИИ в локальной истории
 	// Скриншоттер
 	ScreenshotIntervalSeconds int             `env:"SCREENSHOT_INTERVAL_SECONDS"` // Периодичность снятия скриншотов всего экрана, в секундах
 	YandexTTS                 YandexTTSConfig // Конфигурация TTS (Yandex SpeechKit)
 
 	// Настройки таймера (Scheduler)
-	TimerIntervalSeconds   int    `env:"TIMER_INTERVAL_SECONDS"`   // Базовый интервал между тиками
-	TickTimeoutSeconds     int    `env:"TICK_TIMEOUT_SECONDS"`     // Таймаут одного тика
-	OverlapPolicy          string `env:"OVERLAP_POLICY"`           // Политика при наложении: skip|preempt
-	MaxConsecutiveErrors   int    `env:"MAX_CONSECUTIVE_ERRORS"`   // Сколько ошибок подряд до остановки приложения
-	RotateConversationEach int    `env:"ROTATE_CONVERSATION_EACH"` // Каждые N успешных запросов начинать новый диалог
+	TimerIntervalSeconds int    `env:"TIMER_INTERVAL_SECONDS"` // Базовый интервал между тиками
+	TickTimeoutSeconds   int    `env:"TICK_TIMEOUT_SECONDS"`   // Таймаут одного тика
+	OverlapPolicy        string `env:"OVERLAP_POLICY"`         // Политика при наложении: skip|preempt
+	MaxConsecutiveErrors int    `env:"MAX_CONSECUTIVE_ERRORS"` // Сколько ошибок подряд до остановки приложения
 }
 
 // YandexTTSConfig конфигурация для синтеза речи через Yandex SpeechKit.
@@ -49,13 +50,14 @@ func Defaults() *Config {
 		ImagesSourceDir:           "images\\sharex",
 		ImagesToPick:              3,
 		ImagesTTLSeconds:          60,
+		HistoryHeader:             "история предыдущих ответов AI:",
+		MaxHistoryRecords:         10,
 		ScreenshotIntervalSeconds: 2,
 		// Таймер по умолчанию
-		TimerIntervalSeconds:   5,
-		TickTimeoutSeconds:     60,
-		OverlapPolicy:          "skip", //`skip`|`preempt`
-		MaxConsecutiveErrors:   3,
-		RotateConversationEach: 3,
+		TimerIntervalSeconds: 10,
+		TickTimeoutSeconds:   60,
+		OverlapPolicy:        "skip", //`skip`|`preempt`
+		MaxConsecutiveErrors: 3,
 		YandexTTS: YandexTTSConfig{
 			APIKey:  "", // ключ берём из .env/ENV, если пусто — будет ошибка при использовании
 			Voice:   "omazh",
@@ -77,6 +79,8 @@ func NewConfig() *Config {
 
 	flag.BoolVar(&cfg.DebugMode, "debug-mode", cfg.DebugMode, "включить режим дебага для отображения до инфы")
 	flag.StringVar(&cfg.StartPrompt, "start-prompt", cfg.StartPrompt, "текст стартового промпта диалога")
+	flag.StringVar(&cfg.HistoryHeader, "history-header", cfg.HistoryHeader, "заголовок блока с историей предыдущих ответов AI")
+	flag.IntVar(&cfg.MaxHistoryRecords, "max-history-records", cfg.MaxHistoryRecords, "максимум хранимых ответов ИИ в локальной истории")
 	// Принимаем список характеров одной строкой, разделённой ';'
 	var characterListFlag string
 	characterListFlag = strings.Join(cfg.CharacterList, ";")
@@ -95,7 +99,6 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.TickTimeoutSeconds, "tick-timeout-seconds", cfg.TickTimeoutSeconds, "таймаут одного тика в секундах")
 	flag.StringVar(&cfg.OverlapPolicy, "overlap-policy", cfg.OverlapPolicy, "политика наложения тиков: skip|preempt")
 	flag.IntVar(&cfg.MaxConsecutiveErrors, "max-consecutive-errors", cfg.MaxConsecutiveErrors, "количество последовательных ошибок до остановки приложения")
-	flag.IntVar(&cfg.RotateConversationEach, "rotate-conversation-each", cfg.RotateConversationEach, "каждые N успешных запросов начинать новый диалог")
 	// Параметры Yandex TTS
 	flag.StringVar(&cfg.YandexTTS.APIKey, "yc-tts-api-key", cfg.YandexTTS.APIKey, "API ключ Yandex SpeechKit TTS (перекрывает ENV)")
 	flag.StringVar(&cfg.YandexTTS.Voice, "yc-tts-voice", cfg.YandexTTS.Voice, "голос для синтеза (напр. filipp, jane, oksana, zahar, ermil)")
