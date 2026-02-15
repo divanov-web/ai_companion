@@ -7,6 +7,7 @@ import (
 	"OpenAIClient/internal/service/tts/yandex"
 	"context"
 	"errors"
+	rand "math/rand/v2"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -122,8 +123,13 @@ func (s *Scheduler) runTick(parent context.Context) error {
 	start := time.Now()
 	s.logger.Infow("Tick start")
 
+	// Выбираем случайное фиксированное сообщение
+	msg := "доложи статус"
+	if n := len(s.cfg.FixedMessage); n > 0 {
+		msg = s.cfg.FixedMessage[rand.IntN(n)]
+	}
 	// Запрос через requester
-	resp, err := s.req.SendMessage(tickCtx, s.cfg.FixedMessage)
+	resp, err := s.req.SendMessage(tickCtx, msg)
 	if err != nil {
 		return err
 	}

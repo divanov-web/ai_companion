@@ -12,7 +12,7 @@ type Config struct {
 	DebugMode          bool     `env:"DEBUG_MODE"`                      //Режим дебага
 	StartPrompt        string   `env:"START_PROMPT"`                    //Текст стартового промпта диалога
 	CharacterList      []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
-	FixedMessage       string   `env:"FIXED_MESSAGE"`                   // Фиксированный текст сообщения на каждом тике таймера
+	FixedMessage       []string `env:"FIXED_MESSAGE" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
 	ImagesSourceDir    string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
 	ImagesProcessedDir string   `env:"IMAGES_PROCESSED_DIR"`            // Папка для сохранения обработанных изображений
 	ImagesToPick       int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
@@ -46,7 +46,7 @@ func Defaults() *Config {
 		DebugMode:                 false,
 		StartPrompt:               "Ты помощник капитана и озвучиваешь то, что видишь на картинках",
 		CharacterList:             []string{""}, // по умолчанию один пустой характер
-		FixedMessage:              "доложи статус",
+		FixedMessage:              []string{"доложи статус"},
 		ImagesSourceDir:           "images\\sharex",
 		ImagesProcessedDir:        "images\\processed",
 		ImagesToPick:              3,
@@ -83,7 +83,10 @@ func NewConfig() *Config {
 	var characterListFlag string
 	characterListFlag = strings.Join(cfg.CharacterList, ";")
 	flag.StringVar(&characterListFlag, "character-list", characterListFlag, "список характеров персонажа, разделённых ';'")
-	flag.StringVar(&cfg.FixedMessage, "fixed-message", cfg.FixedMessage, "фиксированный текст сообщения на каждом тике")
+	// Принимаем список фиксированных сообщений одной строкой, разделённой ';'
+	var fixedMessageFlag string
+	fixedMessageFlag = strings.Join(cfg.FixedMessage, ";")
+	flag.StringVar(&fixedMessageFlag, "fixed-message", fixedMessageFlag, "фиксированные сообщения, разделённые ';' (одно будет выбрано случайно)")
 	flag.StringVar(&cfg.ImagesSourceDir, "images-source-dir", cfg.ImagesSourceDir, "путь к папке с исходными изображениями")
 	flag.StringVar(&cfg.ImagesProcessedDir, "images-processed-dir", cfg.ImagesProcessedDir, "путь к папке для сохранения обработанных изображений")
 	flag.IntVar(&cfg.ImagesToPick, "images-to-pick", cfg.ImagesToPick, "количество последних изображений для отправки")
@@ -105,18 +108,29 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.YandexTTS.Volume, "yc-tts-volume", cfg.YandexTTS.Volume, "громкость 0-100 (100 — без изменений)")
 	flag.Parse()
 
-	// Разобрать character-list из флага в слайс, разделитель ';'
-	// Пустые элементы допускаются: если строка пустая, это значит единственный пустой характер
-	if characterListFlag == "" {
-		cfg.CharacterList = []string{""}
-	} else {
-		parts := strings.Split(characterListFlag, ";")
-		// trim пробелы вокруг каждого элемента
-		for i, p := range parts {
-			parts[i] = strings.TrimSpace(p)
-		}
-		cfg.CharacterList = parts
-	}
+	// Разбор списков по общему правилу (trim + убрать пустые), дефолты различаются
+	cfg.CharacterList = parseListFlag(characterListFlag, []string{""})
+	cfg.FixedMessage = parseListFlag(fixedMessageFlag, []string{"доложи статус"})
 
 	return cfg
+}
+
+// parseListFlag разбирает значение флага со списком, разделённым ';'
+func parseListFlag(v string, def []string) []string {
+	// Пустая строка → дефолт
+	if v == "" {
+		return def
+	}
+	parts := strings.Split(v, ";")
+	cleaned := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			cleaned = append(cleaned, p)
+		}
+	}
+	if len(cleaned) == 0 {
+		return def
+	}
+	return cleaned
 }

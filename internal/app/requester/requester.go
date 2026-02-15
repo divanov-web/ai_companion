@@ -24,8 +24,7 @@ type Requester struct {
 	processor      *image.Processor
 	logger         *zap.SugaredLogger
 	conversationID string
-	requestCount   int // количество успешных отправок в текущем диалоге
-	currentChar    string
+	requestCount   int // Количество успешных отправок в текущем диалоге
 	rnd            *rand.Rand
 }
 
@@ -75,20 +74,17 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 	// 3. Создать диалог при необходимости
 	if r.conversationID == "" {
 		// Выбрать случайный характер из списка
-		char := ""
+		characterPrompt := ""
 		if n := len(r.cfg.CharacterList); n > 0 {
-			char = r.cfg.CharacterList[r.rnd.Intn(n)]
+			characterPrompt = r.cfg.CharacterList[r.rnd.Intn(n)]
 		}
-		r.currentChar = char
 
 		metadata := map[string]string{
 			"game":     "Мир кораблей",
 			"game_eng": "Mir korabley",
 		}
-		r.logger.Infow("Запуск диалога")
-		r.logger.Infow("Параметры", "character", char, "start_prompt", r.cfg.StartPrompt)
-
-		convID, cerr := r.companion.StartConversation(ctx, char, r.cfg.StartPrompt, metadata)
+		r.logger.Infow("Запуск диалога", "character", characterPrompt)
+		convID, cerr := r.companion.StartConversation(ctx, characterPrompt, r.cfg.StartPrompt, metadata)
 		if cerr != nil {
 			return "", fmt.Errorf("failed to start conversation: %w", cerr)
 		}
