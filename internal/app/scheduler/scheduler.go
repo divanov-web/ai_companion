@@ -3,6 +3,7 @@ package scheduler
 import (
 	"OpenAIClient/internal/app/requester"
 	"OpenAIClient/internal/config"
+	"OpenAIClient/internal/service/image"
 	"OpenAIClient/internal/service/tts/player"
 	"OpenAIClient/internal/service/tts/yandex"
 	"context"
@@ -22,10 +23,11 @@ const (
 )
 
 type Scheduler struct {
-	cfg    *config.Config
-	req    *requester.Requester
-	tts    *yandex.Client
-	logger *zap.SugaredLogger
+	cfg     *config.Config
+	req     *requester.Requester
+	tts     *yandex.Client
+	logger  *zap.SugaredLogger
+	cleaner *image.Cleaner
 
 	running    atomic.Bool
 	mu         sync.Mutex
@@ -41,7 +43,7 @@ func New(cfg *config.Config, req *requester.Requester, logger *zap.SugaredLogger
 	volDB := float64(v-100) / 5.0
 	p := player.NewWithVolume(volDB)
 	yc := yandex.New(p)
-	return &Scheduler{cfg: cfg, req: req, tts: yc, logger: logger}
+	return &Scheduler{cfg: cfg, req: req, tts: yc, logger: logger, cleaner: image.NewCleaner(logger)}
 }
 
 // Run запускает бесконечный цикл до отмены контекста или достижения лимита ошибок.
@@ -51,6 +53,24 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	if base <= 0 {
 		base = 10 * time.Second
 	}
+
+	// Фоновая задача очистки изображений по TTL
+	cleanInterval := base
+	ttl := time.Duration(s.cfg.ImagesTTLSeconds) * time.Second
+	stopClean := make(chan struct{})
+	go func() {
+		t := time.NewTicker(cleanInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				close(stopClean)
+				return
+			case <-t.C:
+				s.cleaner.Clean(s.cfg.ImagesSourceDir, ttl, s.cfg.DebugMode)
+			}
+		}
+	}()
 
 	// Ждём первый интервал перед первой сработкой
 	s.logger.Infow("Scheduler started", "interval", base.String(), "overlap", s.cfg.OverlapPolicy)
@@ -63,6 +83,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			s.stopPrev()
+			<-stopClean
 			return context.Cause(ctx)
 		case <-time.After(delay):
 			// время тика

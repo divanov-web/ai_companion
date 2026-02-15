@@ -13,6 +13,7 @@
 - [Общая архитектура](docs/architecture_overall.md) — структура всего комплекса AI компаньона.
 - [Архитектура приложения](docs/app_architecture.md) — внутреннее устройство данного Go-приложения.
 - [Бизнес описание](docs/business_overview.md)
+- [Правила написания кода для ИИ](docs/code_styling.md)
 
 ### Быстрый старт TTS (Yandex)
 - Обязательный ключ: `YC_TTS_API_KEY`.

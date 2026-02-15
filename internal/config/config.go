@@ -9,14 +9,13 @@ import (
 )
 
 type Config struct {
-	DebugMode          bool     `env:"DEBUG_MODE"`                      //Режим дебага
-	StartPrompt        string   `env:"START_PROMPT"`                    //Текст стартового промпта диалога
-	CharacterList      []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
-	FixedMessage       []string `env:"FIXED_MESSAGE" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
-	ImagesSourceDir    string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
-	ImagesProcessedDir string   `env:"IMAGES_PROCESSED_DIR"`            // Папка для сохранения обработанных изображений
-	ImagesToPick       int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
-	ImagesTTLSeconds   int      `env:"IMAGES_TTL_SECONDS"`              // Время, через которое картинки считаются старыми и их надо удалить, в секундах
+	DebugMode        bool     `env:"DEBUG_MODE"`                      //Режим дебага
+	StartPrompt      string   `env:"START_PROMPT"`                    //Текст стартового промпта диалога
+	CharacterList    []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
+	FixedMessage     []string `env:"FIXED_MESSAGE" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
+	ImagesSourceDir  string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
+	ImagesToPick     int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
+	ImagesTTLSeconds int      `env:"IMAGES_TTL_SECONDS"`              // Время, через которое картинки считаются старыми и их надо удалить, в секундах
 	// Скриншоттер
 	ScreenshotIntervalSeconds int             `env:"SCREENSHOT_INTERVAL_SECONDS"` // Периодичность снятия скриншотов всего экрана, в секундах
 	YandexTTS                 YandexTTSConfig // Конфигурация TTS (Yandex SpeechKit)
@@ -48,7 +47,6 @@ func Defaults() *Config {
 		CharacterList:             []string{""}, // по умолчанию один пустой характер
 		FixedMessage:              []string{"доложи статус"},
 		ImagesSourceDir:           "images\\sharex",
-		ImagesProcessedDir:        "images\\processed",
 		ImagesToPick:              3,
 		ImagesTTLSeconds:          60,
 		ScreenshotIntervalSeconds: 2,
@@ -88,7 +86,6 @@ func NewConfig() *Config {
 	fixedMessageFlag = strings.Join(cfg.FixedMessage, ";")
 	flag.StringVar(&fixedMessageFlag, "fixed-message", fixedMessageFlag, "фиксированные сообщения, разделённые ';' (одно будет выбрано случайно)")
 	flag.StringVar(&cfg.ImagesSourceDir, "images-source-dir", cfg.ImagesSourceDir, "путь к папке с исходными изображениями")
-	flag.StringVar(&cfg.ImagesProcessedDir, "images-processed-dir", cfg.ImagesProcessedDir, "путь к папке для сохранения обработанных изображений")
 	flag.IntVar(&cfg.ImagesToPick, "images-to-pick", cfg.ImagesToPick, "количество последних изображений для отправки")
 	flag.IntVar(&cfg.ImagesTTLSeconds, "images-ttl-seconds", cfg.ImagesTTLSeconds, "время, через которое картинки считаются старыми и их надо удалить, в секундах")
 	// Скриншоттер

@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/draw"
 	"image/jpeg"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -83,7 +84,24 @@ func (s *Screenshotter) captureOnce() {
 		draw.Draw(canvas, dstRect, img, image.Point{}, draw.Src)
 	}
 
-	// Сохраняем JPEG
+	// Масштабируем до maxWidth=1280 при необходимости, сохраняя пропорции
+	const maxWidth = 1280
+	outImg := image.Image(canvas)
+	if w := canvas.Bounds().Dx(); w > maxWidth {
+		h := canvas.Bounds().Dy()
+		scale := float64(maxWidth) / float64(w)
+		newW := int(math.Round(float64(w) * scale))
+		newH := int(math.Round(float64(h) * scale))
+		if newW <= 0 {
+			newW = 1
+		}
+		if newH <= 0 {
+			newH = 1
+		}
+		outImg = resizeNearest(canvas, newW, newH)
+	}
+
+	// Сохраняем JPEG с параметрами, согласованными с проектом (quality=90)
 	filename := time.Now().Format("2006-01-02_15-04-05-000") + ".jpg"
 	fullPath := filepath.Join(s.cfg.ImagesSourceDir, filename)
 	file, err := os.Create(fullPath)
@@ -97,12 +115,34 @@ func (s *Screenshotter) captureOnce() {
 		}
 	}()
 
-	if err := jpeg.Encode(file, canvas, &jpeg.Options{Quality: 85}); err != nil {
+	if err := jpeg.Encode(file, outImg, &jpeg.Options{Quality: 90}); err != nil {
 		s.logger.Errorw("Failed to encode screenshot to JPEG", "path", fullPath, "error", err)
 		_ = file.Close()
 		_ = os.Remove(fullPath)
 		return
 	}
 
-	//s.logger.Debugw("Screenshot saved", "path", fullPath, "size", fmt.Sprintf("%dx%d", canvas.Bounds().Dx(), canvas.Bounds().Dy()))
+	//s.logger.Debugw("Screenshot saved", "path", fullPath, "size", fmt.Sprintf("%dx%d", outImg.Bounds().Dx(), outImg.Bounds().Dy()))
+}
+
+// resizeNearest выполняет масштабирование изображения методом ближайшего соседа
+func resizeNearest(src image.Image, width int, height int) *image.RGBA {
+	if width <= 0 || height <= 0 {
+		return image.NewRGBA(image.Rect(0, 0, 1, 1))
+	}
+	srcBounds := src.Bounds()
+	srcW := srcBounds.Dx()
+	srcH := srcBounds.Dy()
+	if srcW == 0 || srcH == 0 {
+		return image.NewRGBA(image.Rect(0, 0, width, height))
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := range height {
+		srcY := srcBounds.Min.Y + y*srcH/height
+		for x := range width {
+			srcX := srcBounds.Min.X + x*srcW/width
+			dst.Set(x, y, src.At(srcX, srcY))
+		}
+	}
+	return dst
 }

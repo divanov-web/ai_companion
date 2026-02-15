@@ -21,7 +21,6 @@ import (
 type Requester struct {
 	cfg            *config.Config
 	companion      *companion.Companion
-	processor      *image.Processor
 	logger         *zap.SugaredLogger
 	conversationID string
 	requestCount   int // Количество успешных отправок в текущем диалоге
@@ -32,7 +31,6 @@ func New(cfg *config.Config, companion *companion.Companion, logger *zap.Sugared
 	return &Requester{
 		cfg:       cfg,
 		companion: companion,
-		processor: image.NewProcessor(cfg.ImagesProcessedDir),
 		logger:    logger,
 		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
@@ -56,15 +54,13 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 		return "", nil
 	}
 
-	// 2. Обработать картинки
+	// 2. Подготовить метаданные изображений для отправки (без дополнительной обработки)
 	processed := make([]image.ProcessedImage, 0, len(paths))
 	for _, p := range paths {
-		img, perr := r.processor.Process(p)
-		if perr != nil {
-			r.logger.Warnw("Не удалось обработать изображение", "path", p, "error", perr)
-			continue
-		}
-		processed = append(processed, img)
+		processed = append(processed, image.ProcessedImage{
+			Path:     p,
+			MimeType: "image/jpeg",
+		})
 	}
 	if len(processed) == 0 {
 		r.logger.Infow("После обработки не осталось валидных изображений")
@@ -92,9 +88,7 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 		r.requestCount = 0
 	}
 
-	// 4. Очистка старых изображений в исходной и обработанной папках
-	ttl := time.Duration(r.cfg.ImagesTTLSeconds) * time.Second
-	r.cleanupOldImages([]string{r.cfg.ImagesSourceDir, r.cfg.ImagesProcessedDir}, ttl)
+	// 4. Очистка старых изображений перенесена в scheduler (image.Cleaner)
 
 	// 5. Отправить сообщение с изображениями
 	r.logger.Infow("Отправка сообщения", "count images", len(processed), "text", text)
@@ -172,54 +166,4 @@ func (r *Requester) pickLastImages(dir string, n int) ([]string, error) {
 }
 
 // cleanupOldImages удаляет файлы изображений старше ttl в указанных директориях.
-func (r *Requester) cleanupOldImages(dirs []string, ttl time.Duration) {
-	// В режиме отладки не удаляем никакие изображения
-	if r.cfg.DebugMode {
-		r.logger.Infow("Режим DEBUG: очистка старых изображений отключена", "dirs", dirs, "ttl", ttl.String())
-		return
-	}
-	if ttl <= 0 {
-		return
-	}
-	deadline := time.Now().Add(-ttl)
-	exts := []string{".jpg", ".jpeg"}
-
-	for _, dir := range dirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			r.logger.Warnw("Не удалось прочитать директорию для очистки", "dir", dir, "error", err)
-			continue
-		}
-
-		removed := 0
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
-			}
-			name := e.Name()
-			lower := strings.ToLower(name)
-			if slices.IndexFunc(exts, func(ext string) bool { return strings.HasSuffix(lower, ext) }) == -1 {
-				continue
-			}
-			fi, statErr := e.Info()
-			if statErr != nil {
-				r.logger.Warnw("Не удалось получить информацию о файле при очистке", "name", name, "error", statErr)
-				continue
-			}
-			if fi.ModTime().Before(deadline) {
-				full := filepath.Join(dir, name)
-				if err := os.Remove(full); err != nil {
-					r.logger.Warnw("Не удалось удалить старый файл", "path", full, "error", err)
-					continue
-				}
-				removed++
-			}
-		}
-		if removed > 0 {
-			//r.logger.Infow("Очистка старых изображений выполнена", "dir", dir, "removed", removed, "before", deadline.Format(time.RFC3339))
-		}
-	}
-}
+// Очистка старых изображений вынесена в image.Cleaner и запускается из scheduler
