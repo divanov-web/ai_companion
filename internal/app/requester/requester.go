@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"slices"
@@ -24,6 +25,8 @@ type Requester struct {
 	logger         *zap.SugaredLogger
 	conversationID string
 	requestCount   int // количество успешных отправок в текущем диалоге
+	currentChar    string
+	rnd            *rand.Rand
 }
 
 func New(cfg *config.Config, companion *companion.Companion, logger *zap.SugaredLogger) *Requester {
@@ -32,6 +35,7 @@ func New(cfg *config.Config, companion *companion.Companion, logger *zap.Sugared
 		companion: companion,
 		processor: image.NewProcessor(cfg.ImagesProcessedDir),
 		logger:    logger,
+		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
@@ -70,13 +74,21 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 
 	// 3. Создать диалог при необходимости
 	if r.conversationID == "" {
-		startContext := strings.TrimSpace(r.cfg.StartPrompt)
+		// Выбрать случайный характер из списка
+		char := ""
+		if n := len(r.cfg.CharacterList); n > 0 {
+			char = r.cfg.CharacterList[r.rnd.Intn(n)]
+		}
+		r.currentChar = char
+
 		metadata := map[string]string{
 			"game":     "Мир кораблей",
 			"game_eng": "Mir korabley",
 		}
 		r.logger.Infow("Запуск диалога")
-		convID, cerr := r.companion.StartConversation(ctx, startContext, metadata)
+		r.logger.Infow("Параметры", "character", char, "start_prompt", r.cfg.StartPrompt)
+
+		convID, cerr := r.companion.StartConversation(ctx, char, r.cfg.StartPrompt, metadata)
 		if cerr != nil {
 			return "", fmt.Errorf("failed to start conversation: %w", cerr)
 		}
@@ -90,7 +102,8 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 
 	// 5. Отправить сообщение с изображениями
 	r.logger.Infow("Отправка сообщения", "count images", len(processed), "text", text)
-	resp, err := r.companion.SendMessageWithImage(ctx, r.conversationID, r.cfg.StartCharacter, text, processed)
+	// Передавать пустой systemText: системный текст установлен при создании разговора
+	resp, err := r.companion.SendMessageWithImage(ctx, r.conversationID, "", text, processed)
 	if err != nil {
 		return "", err
 	}

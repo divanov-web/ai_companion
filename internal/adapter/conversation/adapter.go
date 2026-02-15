@@ -21,19 +21,30 @@ func New(client *openai.Client, logger *zap.SugaredLogger) *Adapter {
 }
 
 // NewConversation создаёт диалог и возвращает его ID.
-func (a *Adapter) NewConversation(ctx context.Context, contextText string, metadata map[string]string) (string, error) {
+// На вход принимает systemText (role=system) и contextText (role=user)
+func (a *Adapter) NewConversation(ctx context.Context, systemText string, contextText string, metadata map[string]string) (string, error) {
 	params := conversations.ConversationNewParams{}
-	if contextText != "" {
-		params.Items = []responses.ResponseInputItemUnionParam{
+	items := make([]responses.ResponseInputItemUnionParam, 0, 2)
+	if systemText != "" {
+		items = append(items,
 			responses.ResponseInputItemParamOfMessage(
 				responses.ResponseInputMessageContentListParam{
-					{
-						OfInputText: &responses.ResponseInputTextParam{Text: contextText},
-					},
+					{OfInputText: &responses.ResponseInputTextParam{Text: systemText}},
 				},
-				responses.EasyInputMessageRoleDeveloper,
+				responses.EasyInputMessageRoleSystem,
 			),
-		}
+		)
+	}
+	items = append(items,
+		responses.ResponseInputItemParamOfMessage(
+			responses.ResponseInputMessageContentListParam{
+				{OfInputText: &responses.ResponseInputTextParam{Text: contextText}},
+			},
+			responses.EasyInputMessageRoleUser,
+		),
+	)
+	if len(items) > 0 {
+		params.Items = items
 	}
 	if len(metadata) > 0 {
 		params.Metadata = shared.Metadata(metadata)

@@ -2,20 +2,21 @@ package config
 
 import (
 	"flag"
+	"strings"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	DebugMode          bool   `env:"DEBUG_MODE"`           //Режим дебага
-	StartPrompt        string `env:"START_PROMPT"`         //Текст стартового промпта диалога
-	StartCharacter     string `env:"START_CHARACTER"`      // Характер/стиль персонажа, будет конкатенирован со стартовым промптом
-	FixedMessage       string `env:"FIXED_MESSAGE"`        // Фиксированный текст сообщения на каждом тике таймера
-	ImagesSourceDir    string `env:"IMAGES_SOURCE_DIR"`    // Папка с исходными изображениями
-	ImagesProcessedDir string `env:"IMAGES_PROCESSED_DIR"` // Папка для сохранения обработанных изображений
-	ImagesToPick       int    `env:"IMAGES_TO_PICK"`       // Сколько последних изображений брать
-	ImagesTTLSeconds   int    `env:"IMAGES_TTL_SECONDS"`   // Время, через которое картинки считаются старыми и их надо удалить, в секундах
+	DebugMode          bool     `env:"DEBUG_MODE"`                      //Режим дебага
+	StartPrompt        string   `env:"START_PROMPT"`                    //Текст стартового промпта диалога
+	CharacterList      []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
+	FixedMessage       string   `env:"FIXED_MESSAGE"`                   // Фиксированный текст сообщения на каждом тике таймера
+	ImagesSourceDir    string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
+	ImagesProcessedDir string   `env:"IMAGES_PROCESSED_DIR"`            // Папка для сохранения обработанных изображений
+	ImagesToPick       int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
+	ImagesTTLSeconds   int      `env:"IMAGES_TTL_SECONDS"`              // Время, через которое картинки считаются старыми и их надо удалить, в секундах
 	// Скриншоттер
 	ScreenshotIntervalSeconds int             `env:"SCREENSHOT_INTERVAL_SECONDS"` // Периодичность снятия скриншотов всего экрана, в секундах
 	YandexTTS                 YandexTTSConfig // Конфигурация TTS (Yandex SpeechKit)
@@ -28,13 +29,23 @@ type Config struct {
 	RotateConversationEach int    `env:"ROTATE_CONVERSATION_EACH"` // Каждые N успешных запросов начинать новый диалог
 }
 
+// YandexTTSConfig конфигурация для синтеза речи через Yandex SpeechKit.
+type YandexTTSConfig struct {
+	APIKey  string `env:"YC_TTS_API_KEY"` // Ключ берём из .env/ENV. Если пуст — при использовании будет ошибка
+	Voice   string `env:"YC_TTS_VOICE"`   // Голос, по умолчанию filipp
+	Format  string `env:"YC_TTS_FORMAT"`  // mp3|wav|oggopus, по умолчанию mp3
+	Speed   string `env:"YC_TTS_SPEED"`   // Скорость синтеза (1.0 по умолчанию в API); 1.3 = ~30% быстрее
+	Emotion string `env:"YC_TTS_EMOTION"` // Эмоциональная окраска: neutral|good|evil. По умолчанию evil
+	Volume  int    `env:"YC_TTS_VOLUME"`  // Громкость 0-100; 100 — не изменять громкость todo вероятно есть баг, что громкость уменьшается слишком быстро
+}
+
 // Defaults возвращает конфигурацию с предустановленными значениями по умолчанию.
 // Эти значения перекрываются .env, переменными окружения и флагами CLI.
 func Defaults() *Config {
 	return &Config{
 		DebugMode:                 false,
 		StartPrompt:               "Ты помощник капитана и озвучиваешь то, что видишь на картинках",
-		StartCharacter:            "", // по умолчанию не добавляем отдельный характер
+		CharacterList:             []string{""}, // по умолчанию один пустой характер
 		FixedMessage:              "доложи статус",
 		ImagesSourceDir:           "images\\sharex",
 		ImagesProcessedDir:        "images\\processed",
@@ -68,7 +79,10 @@ func NewConfig() *Config {
 
 	flag.BoolVar(&cfg.DebugMode, "debug-mode", cfg.DebugMode, "включить режим дебага для отображения до инфы")
 	flag.StringVar(&cfg.StartPrompt, "start-prompt", cfg.StartPrompt, "текст стартового промпта диалога")
-	flag.StringVar(&cfg.StartCharacter, "start-character", cfg.StartCharacter, "характер/стиль персонажа для стартового промпта")
+	// Принимаем список характеров одной строкой, разделённой ';'
+	var characterListFlag string
+	characterListFlag = strings.Join(cfg.CharacterList, ";")
+	flag.StringVar(&characterListFlag, "character-list", characterListFlag, "список характеров персонажа, разделённых ';'")
 	flag.StringVar(&cfg.FixedMessage, "fixed-message", cfg.FixedMessage, "фиксированный текст сообщения на каждом тике")
 	flag.StringVar(&cfg.ImagesSourceDir, "images-source-dir", cfg.ImagesSourceDir, "путь к папке с исходными изображениями")
 	flag.StringVar(&cfg.ImagesProcessedDir, "images-processed-dir", cfg.ImagesProcessedDir, "путь к папке для сохранения обработанных изображений")
@@ -91,15 +105,18 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.YandexTTS.Volume, "yc-tts-volume", cfg.YandexTTS.Volume, "громкость 0-100 (100 — без изменений)")
 	flag.Parse()
 
-	return cfg
-}
+	// Разобрать character-list из флага в слайс, разделитель ';'
+	// Пустые элементы допускаются: если строка пустая, это значит единственный пустой характер
+	if characterListFlag == "" {
+		cfg.CharacterList = []string{""}
+	} else {
+		parts := strings.Split(characterListFlag, ";")
+		// trim пробелы вокруг каждого элемента
+		for i, p := range parts {
+			parts[i] = strings.TrimSpace(p)
+		}
+		cfg.CharacterList = parts
+	}
 
-// YandexTTSConfig конфигурация для синтеза речи через Yandex SpeechKit.
-type YandexTTSConfig struct {
-	APIKey  string `env:"YC_TTS_API_KEY"` // Ключ берём из .env/ENV. Если пуст — при использовании будет ошибка
-	Voice   string `env:"YC_TTS_VOICE"`   // Голос, по умолчанию filipp
-	Format  string `env:"YC_TTS_FORMAT"`  // mp3|wav|oggopus, по умолчанию mp3
-	Speed   string `env:"YC_TTS_SPEED"`   // Скорость синтеза (1.0 по умолчанию в API); 1.3 = ~30% быстрее
-	Emotion string `env:"YC_TTS_EMOTION"` // Эмоциональная окраска: neutral|good|evil. По умолчанию evil
-	Volume  int    `env:"YC_TTS_VOLUME"`  // Громкость 0-100; 100 — не изменять громкость todo вероятно есть баг, что громкость уменьшается слишком быстро
+	return cfg
 }

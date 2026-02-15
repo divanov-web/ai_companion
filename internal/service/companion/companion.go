@@ -6,7 +6,7 @@ import (
 )
 
 type ConversationAdapter interface {
-	NewConversation(ctx context.Context, contextText string, metadata map[string]string) (string, error)
+	NewConversation(ctx context.Context, systemText string, contextText string, metadata map[string]string) (string, error)
 }
 
 type MessageAdapter interface {
@@ -24,8 +24,8 @@ func NewCompanion(conversations ConversationAdapter, messages MessageAdapter) *C
 }
 
 // StartConversation создаёт новый диалог.
-func (c *Companion) StartConversation(ctx context.Context, contextText string, metadata map[string]string) (string, error) {
-	return c.conversations.NewConversation(ctx, contextText, metadata)
+func (c *Companion) StartConversation(ctx context.Context, systemText string, contextText string, metadata map[string]string) (string, error) {
+	return c.conversations.NewConversation(ctx, systemText, contextText, metadata)
 }
 
 // SendMessageWithImage отправляет сообщение с картинкой.
