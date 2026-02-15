@@ -5,6 +5,9 @@ go 1.24
 require (
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/faiface/beep v1.1.0
+	github.com/go-audio/wav v1.0.0
+	github.com/gordonklaus/portaudio v0.0.0-20260203164431-765aa7dfa631
+	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
 	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018
 	github.com/openai/openai-go/v3 v3.21.0
@@ -13,6 +16,8 @@ require (
 
 require (
 	github.com/gen2brain/shm v0.1.0 // indirect
+	github.com/go-audio/audio v1.0.0 // indirect
+	github.com/go-audio/riff v1.0.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/hajimehoshi/go-mp3 v0.3.0 // indirect
 	github.com/hajimehoshi/oto v0.7.1 // indirect
