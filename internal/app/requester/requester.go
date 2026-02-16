@@ -19,21 +19,27 @@ import (
 )
 
 type Requester struct {
-	cfg       *config.Config
-	companion *companion.Companion
-	logger    *zap.SugaredLogger
-	localConv *localconversation.LocalConversation
-	rnd       *rand.Rand
+	cfg             *config.Config
+	companion       *companion.Companion
+	logger          *zap.SugaredLogger
+	localConv       *localconversation.LocalConversation
+	rnd             *rand.Rand
+	requestCount    int // Количество успешных отправок в текущем диалоге
+	characterPrompt string
 }
 
 func New(cfg *config.Config, companion *companion.Companion, logger *zap.SugaredLogger) *Requester {
-	return &Requester{
+	r := &Requester{
 		cfg:       cfg,
 		companion: companion,
 		logger:    logger,
 		localConv: localconversation.New("", cfg.MaxHistoryRecords),
 		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
+	// Задаём первый характер при старте
+	n := len(cfg.CharacterList)
+	r.characterPrompt = cfg.CharacterList[r.rnd.Intn(n)]
+	return r
 }
 
 // SendMessage выполняет сценарий «Послать запрос» один раз.
@@ -61,15 +67,14 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 		return "", nil
 	}
 
-	// 3. Подготовить системный текст: выбираем случайный характер из списка при каждом stateless-вызове
-	characterPrompt := ""
-	if n := len(r.cfg.CharacterList); n > 0 {
-		characterPrompt = r.cfg.CharacterList[r.rnd.Intn(n)]
+	// Ротация характера: каждые N успешных сообщений выбираем новый характер
+	if r.cfg.RotateConversationEach > 0 && r.requestCount >= r.cfg.RotateConversationEach {
+		n := len(r.cfg.CharacterList)
+		r.characterPrompt = r.cfg.CharacterList[r.rnd.Intn(n)]
+		r.requestCount = 0
 	}
 
-	// 4. Очистка старых изображений перенесена в scheduler (image.Cleaner)
-
-	// 5. Сформировать историю ответов с заголовком из конфига
+	// 4. Сформировать историю ответов с заголовком из конфига
 	history := r.localConv.History()
 	historyWithHeader := history
 	if len(history) > 0 {
@@ -83,11 +88,12 @@ func (r *Requester) SendMessage(ctx context.Context, text string) (string, error
 	}
 
 	// 6. Отправить сообщение с изображениями (stateless)
-	r.logger.Infow("Отправка сообщения", "text", text)
-	resp, err := r.companion.SendMessageWithImage(ctx, characterPrompt, r.cfg.StartPrompt, text, historyWithHeader, processed)
+	r.logger.Infow("Отправка сообщения", "characterPrompt", r.characterPrompt, "text", text)
+	resp, err := r.companion.SendMessageWithImage(ctx, r.characterPrompt, r.cfg.StartPrompt, text, historyWithHeader, processed)
 	if err != nil {
 		return "", err
 	}
+	r.requestCount++
 	// Сохраняем ответ (локальный лимит истории применяется внутри localConv)
 	r.localConv.AppendResponse(resp)
 	return resp, nil

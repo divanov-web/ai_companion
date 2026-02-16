@@ -23,10 +23,11 @@ type Config struct {
 	YandexTTS                 YandexTTSConfig // Конфигурация TTS (Yandex SpeechKit)
 
 	// Настройки таймера (Scheduler)
-	TimerIntervalSeconds int    `env:"TIMER_INTERVAL_SECONDS"` // Базовый интервал между тиками
-	TickTimeoutSeconds   int    `env:"TICK_TIMEOUT_SECONDS"`   // Таймаут одного тика
-	OverlapPolicy        string `env:"OVERLAP_POLICY"`         // Политика при наложении: skip|preempt
-	MaxConsecutiveErrors int    `env:"MAX_CONSECUTIVE_ERRORS"` // Сколько ошибок подряд до остановки приложения
+	TimerIntervalSeconds   int    `env:"TIMER_INTERVAL_SECONDS"`   // Базовый интервал между тиками
+	TickTimeoutSeconds     int    `env:"TICK_TIMEOUT_SECONDS"`     // Таймаут одного тика
+	OverlapPolicy          string `env:"OVERLAP_POLICY"`           // Политика при наложении: skip|preempt
+	MaxConsecutiveErrors   int    `env:"MAX_CONSECUTIVE_ERRORS"`   // Сколько ошибок подряд до остановки приложения
+	RotateConversationEach int    `env:"ROTATE_CONVERSATION_EACH"` // Каждые N успешных запросов начинать новый диалог
 }
 
 // YandexTTSConfig конфигурация для синтеза речи через Yandex SpeechKit.
@@ -54,10 +55,11 @@ func Defaults() *Config {
 		MaxHistoryRecords:         10,
 		ScreenshotIntervalSeconds: 2,
 		// Таймер по умолчанию
-		TimerIntervalSeconds: 10,
-		TickTimeoutSeconds:   60,
-		OverlapPolicy:        "skip", //`skip`|`preempt`
-		MaxConsecutiveErrors: 3,
+		RotateConversationEach: 3,
+		TimerIntervalSeconds:   10,
+		TickTimeoutSeconds:     60,
+		OverlapPolicy:          "skip", //`skip`|`preempt`
+		MaxConsecutiveErrors:   3,
 		YandexTTS: YandexTTSConfig{
 			APIKey:  "", // ключ берём из .env/ENV, если пусто — будет ошибка при использовании
 			Voice:   "omazh",
@@ -99,6 +101,7 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.TickTimeoutSeconds, "tick-timeout-seconds", cfg.TickTimeoutSeconds, "таймаут одного тика в секундах")
 	flag.StringVar(&cfg.OverlapPolicy, "overlap-policy", cfg.OverlapPolicy, "политика наложения тиков: skip|preempt")
 	flag.IntVar(&cfg.MaxConsecutiveErrors, "max-consecutive-errors", cfg.MaxConsecutiveErrors, "количество последовательных ошибок до остановки приложения")
+	flag.IntVar(&cfg.RotateConversationEach, "rotate-conversation-each", cfg.RotateConversationEach, "каждые N успешных запросов начинать новый диалог")
 	// Параметры Yandex TTS
 	flag.StringVar(&cfg.YandexTTS.APIKey, "yc-tts-api-key", cfg.YandexTTS.APIKey, "API ключ Yandex SpeechKit TTS (перекрывает ENV)")
 	flag.StringVar(&cfg.YandexTTS.Voice, "yc-tts-voice", cfg.YandexTTS.Voice, "голос для синтеза (напр. filipp, jane, oksana, zahar, ermil)")
