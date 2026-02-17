@@ -63,7 +63,6 @@ func main() {
 	// Подписка на события STT
 	go func() {
 		for ev := range stt.Events() {
-			sugar.Infow("событие stt")
 			// Обрабатываем только финальный текст от Handy
 			if ev.Type != handy.EventHandyFinalText {
 				continue

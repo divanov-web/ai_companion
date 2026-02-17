@@ -11,7 +11,7 @@ import (
 
 type Config struct {
 	DebugMode         bool     `env:"DEBUG_MODE"`                      //Режим дебага
-	StartPrompt       string   `env:"START_PROMPT"`                    //Текст стартового промпта диалога
+	AssistantPrompt   string   `env:"ASSISTANT_PROMPT"`                //Текст промпта ассистента диалога
 	CharacterList     []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
 	FixedMessage      []string `env:"FIXED_MESSAGE" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
 	ImagesSourceDir   string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
@@ -53,7 +53,7 @@ type YandexTTSConfig struct {
 func Defaults() *Config {
 	return &Config{
 		DebugMode:                 false,
-		StartPrompt:               "Ты помощник капитана и озвучиваешь то, что видишь на картинках",
+		AssistantPrompt:           "Ты помощник капитана и озвучиваешь то, что видишь на картинках",
 		CharacterList:             []string{""}, // по умолчанию один пустой характер
 		FixedMessage:              []string{"доложи статус"},
 		ImagesSourceDir:           "images\\sharex",
@@ -94,7 +94,7 @@ func NewConfig() *Config {
 	_ = env.Parse(cfg)
 
 	flag.BoolVar(&cfg.DebugMode, "debug-mode", cfg.DebugMode, "включить режим дебага для отображения до инфы")
-	flag.StringVar(&cfg.StartPrompt, "start-prompt", cfg.StartPrompt, "текст стартового промпта диалога")
+	flag.StringVar(&cfg.AssistantPrompt, "assistant-prompt", cfg.AssistantPrompt, "текст промпта ассистента диалога")
 	flag.StringVar(&cfg.HistoryHeader, "history-header", cfg.HistoryHeader, "заголовок блока с историей предыдущих ответов AI")
 	flag.IntVar(&cfg.MaxHistoryRecords, "max-history-records", cfg.MaxHistoryRecords, "максимум хранимых ответов ИИ в локальной истории")
 	// Принимаем список характеров одной строкой, разделённой ';'

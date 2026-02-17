@@ -120,7 +120,7 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 
 	// 6. Отправить сообщение с изображениями (stateless)
 	r.logger.Infow("Отправка сообщения", "characterPrompt", r.characterPrompt, "text", text)
-	resp, err := r.companion.SendMessageWithImage(ctx, r.characterPrompt, r.cfg.StartPrompt, text, historyWithHeader, processed)
+	resp, err := r.companion.SendMessageWithImage(ctx, r.characterPrompt, r.cfg.AssistantPrompt, text, historyWithHeader, processed)
 	if err != nil {
 		return "", err
 	}
