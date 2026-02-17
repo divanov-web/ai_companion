@@ -11,6 +11,7 @@ import (
 	"OpenAIClient/internal/service/speech"
 	"OpenAIClient/internal/service/stt/handy"
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 
@@ -57,7 +58,11 @@ func main() {
 	stt := handy.New(handy.Config{HandyWindow: cfg.STTHandyWindow, HotkeyDelay: cfg.STTHotkeyDelay})
 	go func() {
 		if err := stt.Run(ctx); err != nil {
-			sugar.Errorw("STT service stopped", "error", err)
+			if errors.Is(err, context.Canceled) {
+				sugar.Infow("STT service stopped", "reason", "context canceled")
+			} else {
+				sugar.Errorw("STT service stopped", "error", err)
+			}
 		}
 	}()
 	// Подписка на события STT
@@ -77,6 +82,10 @@ func main() {
 	go scr.Run(ctx)
 	sch := scheduler.New(cfg, req, sp, sugar)
 	if err := sch.Run(ctx); err != nil {
+		if errors.Is(err, context.Canceled) {
+			sugar.Infow("Scheduler stopped", "reason", "context canceled")
+			return
+		}
 		sugar.Fatalw("Scheduler stopped with error", "error", err)
 	}
 }
