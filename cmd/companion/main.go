@@ -63,20 +63,12 @@ func main() {
 	// Подписка на события STT
 	go func() {
 		for ev := range stt.Events() {
-			ts := ev.At.Format("15:04:05.000")
-			switch ev.Type {
-			case handy.EventClipboardChanged:
-				if cfg.DebugMode {
-					sugar.Infow("[CLIPBOARD]", "ts", ts, "len", len(ev.Text))
-				}
-			case handy.EventCtrlEnter:
-				if cfg.DebugMode {
-					sugar.Infow("[CTRL+ENTER]", "ts", ts)
-				}
-			case handy.EventHandyFinalText:
-				sp.Add(ev.Text)
-				sugar.Infow("Текст пойман", "text", ev.Text)
+			sugar.Infow("событие stt")
+			// Обрабатываем только финальный текст от Handy
+			if ev.Type != handy.EventHandyFinalText {
+				continue
 			}
+			sp.Add(ev.Text)
 		}
 	}()
 

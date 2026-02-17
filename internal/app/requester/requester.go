@@ -46,26 +46,34 @@ func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, 
 }
 
 // SendMessage выполняет сценарий «Послать запрос» один раз.
-func (r *Requester) SendMessage(ctx context.Context, text string) (string, error) {
-	// Присоединяем блок из Speech в КОНЕЦ текста, если он есть
+func (r *Requester) SendMessage(ctx context.Context) (string, error) {
+	var text string
+
+	var b strings.Builder
+	b.WriteString(r.cfg.SpeechHeader)
+
+	usedSpeech := false
 	if r.speech != nil {
 		if msgs := r.speech.Drain(); len(msgs) > 0 {
-			header := r.cfg.SpeechHeader
-			if strings.TrimSpace(header) == "" {
-				header = "сообщения пользователя:"
-			}
-			// Собираем блок: два перевода строки перед и после заголовка
-			var b strings.Builder
-			b.WriteString(text)
-			b.WriteString("\n\n")
-			b.WriteString(header)
 			for _, m := range msgs {
 				b.WriteString("\n- ")
 				b.WriteString(m)
 			}
-			text = b.String()
+			usedSpeech = true
 		}
 	}
+
+	if !usedSpeech {
+		// выберем фиксированное сообщение
+		msg := "доложи статус"
+		if n := len(r.cfg.FixedMessage); n > 0 {
+			msg = r.cfg.FixedMessage[r.rnd.Intn(n)]
+		}
+		b.WriteString("\n- ")
+		b.WriteString(msg)
+	}
+
+	text = b.String()
 
 	// 1. Найти N последних картинок
 	paths, err := r.pickLastImages(r.cfg.ImagesSourceDir, r.cfg.ImagesToPick)

@@ -60,6 +60,7 @@ func Defaults() *Config {
 		ImagesToPick:              3,
 		ImagesTTLSeconds:          60,
 		HistoryHeader:             "история предыдущих ответов AI:",
+		SpeechHeader:              "Моя реплика",
 		MaxHistoryRecords:         10,
 		ScreenshotIntervalSeconds: 2,
 		// Таймер по умолчанию
@@ -71,7 +72,6 @@ func Defaults() *Config {
 		// STT/Speech
 		STTHandyWindow:  time.Second,
 		STTHotkeyDelay:  100 * time.Millisecond,
-		SpeechHeader:    "сообщения пользователя:",
 		SpeechMax:       10,
 		EnableEarlyTick: true,
 		YandexTTS: YandexTTSConfig{
