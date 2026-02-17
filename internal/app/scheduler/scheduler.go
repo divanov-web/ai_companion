@@ -4,6 +4,7 @@ import (
 	"OpenAIClient/internal/app/requester"
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service/image"
+	"OpenAIClient/internal/service/speech"
 	"OpenAIClient/internal/service/tts/player"
 	"OpenAIClient/internal/service/tts/yandex"
 	"context"
@@ -25,6 +26,7 @@ const (
 type Scheduler struct {
 	cfg     *config.Config
 	req     *requester.Requester
+	speech  *speech.Speech
 	tts     *yandex.Client
 	logger  *zap.SugaredLogger
 	cleaner *image.Cleaner
@@ -37,13 +39,13 @@ type Scheduler struct {
 	consecutiveErrors int // счётчик ошибок
 }
 
-func New(cfg *config.Config, req *requester.Requester, logger *zap.SugaredLogger) *Scheduler {
+func New(cfg *config.Config, req *requester.Requester, sp *speech.Speech, logger *zap.SugaredLogger) *Scheduler {
 	// Конвертируем 0..100 (100 — без изменений) в dB диапазон [-20..0]
 	v := max(0, min(100, cfg.YandexTTS.Volume))
 	volDB := float64(v-100) / 5.0
 	p := player.NewWithVolume(volDB)
 	yc := yandex.New(p)
-	return &Scheduler{cfg: cfg, req: req, tts: yc, logger: logger, cleaner: image.NewCleaner(logger)}
+	return &Scheduler{cfg: cfg, req: req, speech: sp, tts: yc, logger: logger, cleaner: image.NewCleaner(logger)}
 }
 
 // Run запускает бесконечный цикл до отмены контекста или достижения лимита ошибок.
@@ -75,23 +77,46 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	// Ждём первый интервал перед первой сработкой
 	s.logger.Infow("Scheduler started", "interval", base.String(), "overlap", s.cfg.OverlapPolicy)
 
-	// Основной цикл без использования time.Ticker, чтобы учитывать джиттер на каждый тик
+	// Основной цикл ожидания: базовый таймер И сигналы от Speech для раннего тика
 	for {
 		// Фиксированная задержка без джиттера
-		delay := base
-
+		t := time.NewTimer(base)
+		earlyCh := (<-chan struct{})(nil)
+		if s.speech != nil && s.cfg.EnableEarlyTick {
+			earlyCh = s.speech.NotifyCh()
+		}
+		firedEarly := false
 		select {
 		case <-ctx.Done():
+			if !t.Stop() {
+				select {
+				case <-t.C:
+				default:
+				}
+			}
 			s.stopPrev()
 			<-stopClean
 			return context.Cause(ctx)
-		case <-time.After(delay):
-			// время тика
+		case <-t.C:
+			// обычный тик по таймеру
+		case <-earlyCh:
+			firedEarly = true
+			if !t.Stop() {
+				// слить, если уже сработал
+				select {
+				case <-t.C:
+				default:
+				}
+			}
 		}
 
 		if err := s.runTick(ctx); err != nil {
 			s.consecutiveErrors++
-			s.logger.Errorw("Tick failed", "error", err, "consecutiveErrors", s.consecutiveErrors)
+			if firedEarly {
+				s.logger.Errorw("Early tick failed", "error", err, "consecutiveErrors", s.consecutiveErrors)
+			} else {
+				s.logger.Errorw("Tick failed", "error", err, "consecutiveErrors", s.consecutiveErrors)
+			}
 			if s.consecutiveErrors >= max(1, s.cfg.MaxConsecutiveErrors) {
 				s.logger.Errorw("Stopping due to consecutive errors threshold", "threshold", s.cfg.MaxConsecutiveErrors)
 				s.stopPrev()

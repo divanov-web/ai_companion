@@ -5,6 +5,7 @@ import (
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service/companion"
 	"OpenAIClient/internal/service/image"
+	"OpenAIClient/internal/service/speech"
 	"cmp"
 	"context"
 	"errors"
@@ -23,17 +24,19 @@ type Requester struct {
 	companion       *companion.Companion
 	logger          *zap.SugaredLogger
 	localConv       *localconversation.LocalConversation
+	speech          *speech.Speech
 	rnd             *rand.Rand
 	requestCount    int // Количество успешных отправок в текущем диалоге
 	characterPrompt string
 }
 
-func New(cfg *config.Config, companion *companion.Companion, logger *zap.SugaredLogger) *Requester {
+func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, logger *zap.SugaredLogger) *Requester {
 	r := &Requester{
 		cfg:       cfg,
 		companion: companion,
 		logger:    logger,
 		localConv: localconversation.New("", cfg.MaxHistoryRecords),
+		speech:    sp,
 		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 	// Задаём первый характер при старте
@@ -44,6 +47,26 @@ func New(cfg *config.Config, companion *companion.Companion, logger *zap.Sugared
 
 // SendMessage выполняет сценарий «Послать запрос» один раз.
 func (r *Requester) SendMessage(ctx context.Context, text string) (string, error) {
+	// Присоединяем блок из Speech в КОНЕЦ текста, если он есть
+	if r.speech != nil {
+		if msgs := r.speech.Drain(); len(msgs) > 0 {
+			header := r.cfg.SpeechHeader
+			if strings.TrimSpace(header) == "" {
+				header = "сообщения пользователя:"
+			}
+			// Собираем блок: два перевода строки перед и после заголовка
+			var b strings.Builder
+			b.WriteString(text)
+			b.WriteString("\n\n")
+			b.WriteString(header)
+			for _, m := range msgs {
+				b.WriteString("\n- ")
+				b.WriteString(m)
+			}
+			text = b.String()
+		}
+	}
+
 	// 1. Найти N последних картинок
 	paths, err := r.pickLastImages(r.cfg.ImagesSourceDir, r.cfg.ImagesToPick)
 	if err != nil {

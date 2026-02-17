@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"strings"
+	"time"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/joho/godotenv"
@@ -28,6 +29,13 @@ type Config struct {
 	OverlapPolicy          string `env:"OVERLAP_POLICY"`           // Политика при наложении: skip|preempt
 	MaxConsecutiveErrors   int    `env:"MAX_CONSECUTIVE_ERRORS"`   // Сколько ошибок подряд до остановки приложения
 	RotateConversationEach int    `env:"ROTATE_CONVERSATION_EACH"` // Каждые N успешных запросов начинать новый диалог
+
+	// STT (Handy) и Speech
+	STTHandyWindow  time.Duration `env:"STT_HANDY_WINDOW"`  // Окно совпадения буфера и хоткея
+	STTHotkeyDelay  time.Duration `env:"STT_HOTKEY_DELAY"`  // Задержка реакции на Ctrl+Enter
+	SpeechHeader    string        `env:"SPEECH_HEADER"`     // Заголовок для блока сообщений из речи
+	SpeechMax       int           `env:"SPEECH_MAX"`        // Максимум хранимых сообщений речи
+	EnableEarlyTick bool          `env:"ENABLE_EARLY_TICK"` // Запускать тик ранее при наличии сообщений речи
 }
 
 // YandexTTSConfig конфигурация для синтеза речи через Yandex SpeechKit.
@@ -60,6 +68,12 @@ func Defaults() *Config {
 		TickTimeoutSeconds:     60,
 		OverlapPolicy:          "skip", //`skip`|`preempt`
 		MaxConsecutiveErrors:   3,
+		// STT/Speech
+		STTHandyWindow:  time.Second,
+		STTHotkeyDelay:  100 * time.Millisecond,
+		SpeechHeader:    "сообщения пользователя:",
+		SpeechMax:       10,
+		EnableEarlyTick: true,
 		YandexTTS: YandexTTSConfig{
 			APIKey:  "", // ключ берём из .env/ENV, если пусто — будет ошибка при использовании
 			Voice:   "omazh",
@@ -109,6 +123,12 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.YandexTTS.Speed, "yc-tts-speed", cfg.YandexTTS.Speed, "скорость речи (например, 1.0 по умолчанию; 1.3 = на 30% быстрее)")
 	flag.StringVar(&cfg.YandexTTS.Emotion, "yc-tts-emotion", cfg.YandexTTS.Emotion, "эмоциональная окраска (neutral|good|evil). По умолчанию evil")
 	flag.IntVar(&cfg.YandexTTS.Volume, "yc-tts-volume", cfg.YandexTTS.Volume, "громкость 0-100 (100 — без изменений)")
+	// STT/Speech
+	flag.DurationVar(&cfg.STTHandyWindow, "stt-handy-window", cfg.STTHandyWindow, "окно времени (Handy) для совпадения буфера и хоткея, напр. 1s")
+	flag.DurationVar(&cfg.STTHotkeyDelay, "stt-hotkey-delay", cfg.STTHotkeyDelay, "задержка реакции на Ctrl+Enter перед фиксацией текста, напр. 100ms")
+	flag.StringVar(&cfg.SpeechHeader, "speech-header", cfg.SpeechHeader, "заголовок блока сообщений из речи (Speech)")
+	flag.IntVar(&cfg.SpeechMax, "speech-max", cfg.SpeechMax, "максимум хранимых сообщений в Speech")
+	flag.BoolVar(&cfg.EnableEarlyTick, "enable-early-tick", cfg.EnableEarlyTick, "запускать ранний тик при наличии сообщений из Speech")
 	flag.Parse()
 
 	// Разбор списков по общему правилу (trim + убрать пустые), дефолты различаются
