@@ -13,7 +13,7 @@ type Config struct {
 	DebugMode         bool     `env:"DEBUG_MODE"`                      //Режим дебага
 	AssistantPrompt   string   `env:"ASSISTANT_PROMPT"`                //Текст промпта ассистента диалога
 	CharacterList     []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
-	FixedMessage      []string `env:"FIXED_MESSAGE" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
+	SpeechPrompt      []string `env:"SPEECH_PROMPT" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
 	ImagesSourceDir   string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
 	ImagesToPick      int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
 	ImagesTTLSeconds  int      `env:"IMAGES_TTL_SECONDS"`              // Время, через которое картинки считаются старыми и их надо удалить, в секундах
@@ -55,7 +55,7 @@ func Defaults() *Config {
 		DebugMode:                 false,
 		AssistantPrompt:           "Ты помощник капитана и озвучиваешь то, что видишь на картинках",
 		CharacterList:             []string{""}, // по умолчанию один пустой характер
-		FixedMessage:              []string{"доложи статус"},
+		SpeechPrompt:              []string{"доложи статус"},
 		ImagesSourceDir:           "images\\sharex",
 		ImagesToPick:              3,
 		ImagesTTLSeconds:          60,
@@ -101,10 +101,10 @@ func NewConfig() *Config {
 	var characterListFlag string
 	characterListFlag = strings.Join(cfg.CharacterList, ";")
 	flag.StringVar(&characterListFlag, "character-list", characterListFlag, "список характеров персонажа, разделённых ';'")
-	// Принимаем список фиксированных сообщений одной строкой, разделённой ';'
-	var fixedMessageFlag string
-	fixedMessageFlag = strings.Join(cfg.FixedMessage, ";")
-	flag.StringVar(&fixedMessageFlag, "fixed-message", fixedMessageFlag, "фиксированные сообщения, разделённые ';' (одно будет выбрано случайно)")
+	// Принимаем список реплик-подсказок одной строкой, разделённой ';'
+	var speechPromptFlag string
+	speechPromptFlag = strings.Join(cfg.SpeechPrompt, ";")
+	flag.StringVar(&speechPromptFlag, "speech-prompt", speechPromptFlag, "реплики-подсказки, разделённые ';' (одна будет выбрана случайно)")
 	flag.StringVar(&cfg.ImagesSourceDir, "images-source-dir", cfg.ImagesSourceDir, "путь к папке с исходными изображениями")
 	flag.IntVar(&cfg.ImagesToPick, "images-to-pick", cfg.ImagesToPick, "количество последних изображений для отправки")
 	flag.IntVar(&cfg.ImagesTTLSeconds, "images-ttl-seconds", cfg.ImagesTTLSeconds, "время, через которое картинки считаются старыми и их надо удалить, в секундах")
@@ -133,7 +133,7 @@ func NewConfig() *Config {
 
 	// Разбор списков по общему правилу (trim + убрать пустые), дефолты различаются
 	cfg.CharacterList = parseListFlag(characterListFlag, []string{""})
-	cfg.FixedMessage = parseListFlag(fixedMessageFlag, []string{"доложи статус"})
+	cfg.SpeechPrompt = parseListFlag(speechPromptFlag, []string{"доложи статус"})
 
 	return cfg
 }

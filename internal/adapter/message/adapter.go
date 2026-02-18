@@ -19,21 +19,20 @@ type Adapter struct {
 	logger *zap.SugaredLogger
 }
 
-// New создаёт адаптер сообщений.
+// New возвращает адаптер отправки сообщений.
 func New(client *openai.Client, logger *zap.SugaredLogger) *Adapter {
 	return &Adapter{client: client, logger: logger}
 }
 
-// SendTextWithImage отправляет системное сообщение (если задано), затем опциональный
-// assistantPrompt отдельным сообщением ассистента, историю и текущий текст пользователя с картинками (stateless).
-func (a *Adapter) SendTextWithImage(ctx context.Context, systemText string, assistantPrompt string, text string, responseHistory []string, images []image.ProcessedImage) (string, error) {
-	// Контент одного пользовательского сообщения: сначала история (если есть), затем текущий текст, затем изображения
-	content := make(responses.ResponseInputMessageContentListParam, 0, len(images)+2)
-	if len(responseHistory) > 0 {
-		historyText := strings.Join(responseHistory, "\n")
-		content = append(content, responses.ResponseInputContentParamOfInputText(historyText))
-	}
-	content = append(content, responses.ResponseInputContentParamOfInputText(text))
+// SendTextWithImage отправляет:
+// - systemPrompt (опционально) как system;
+// - assistantPrompt (опционально) отдельным сообщением ассистента;
+// - userPrompt Текущий текст пользователя с картинками.
+// История должна быть заранее слита в `text` на уровне вызова.
+func (a *Adapter) SendTextWithImage(ctx context.Context, systemPrompt string, assistantPrompt string, userPrompt string, images []image.ProcessedImage) (string, error) {
+	// Контент пользовательского сообщения: текст, затем изображения
+	content := make(responses.ResponseInputMessageContentListParam, 0, len(images)+1)
+	content = append(content, responses.ResponseInputContentParamOfInputText(userPrompt))
 	for _, img := range images {
 		dataURL, err := makeImageDataURL(img)
 		if err != nil {
@@ -44,9 +43,9 @@ func (a *Adapter) SendTextWithImage(ctx context.Context, systemText string, assi
 		content = append(content, imageParam)
 	}
 
-	// Формируем список input items: опционально системное сообщение + пользовательское сообщение
+	// Собираем входные элементы: system (если есть), assistant (если есть), user
 	inputItems := make(responses.ResponseInputParam, 0, 3)
-	if st := strings.TrimSpace(systemText); st != "" {
+	if st := strings.TrimSpace(systemPrompt); st != "" {
 		inputItems = append(inputItems,
 			responses.ResponseInputItemParamOfMessage(
 				responses.ResponseInputMessageContentListParam{
@@ -56,13 +55,10 @@ func (a *Adapter) SendTextWithImage(ctx context.Context, systemText string, assi
 			),
 		)
 	}
-	// Добавляем assistantPrompt отдельным сообщением ассистента, если он задан.
-	// В Responses API для сообщений ассистента используется output_message
-	// с контентом типа output_text.
+	// assistantPrompt добавляем как output_message с output_text
 	if ap := strings.TrimSpace(assistantPrompt); ap != "" {
 		var out responses.ResponseOutputTextParam
 		out.Text = ap
-		// Аннотации могут быть пустыми, поле помечено omitzero,required — пустой массив валиден.
 		out.Annotations = nil
 		assistantContent := []responses.ResponseOutputMessageContentUnionParam{
 			{OfOutputText: &out},
@@ -70,7 +66,7 @@ func (a *Adapter) SendTextWithImage(ctx context.Context, systemText string, assi
 		inputItems = append(inputItems,
 			responses.ResponseInputItemParamOfOutputMessage(
 				assistantContent,
-				"", // id не обязателен для входного output_message
+				"",
 				responses.ResponseOutputMessageStatusCompleted,
 			),
 		)
@@ -108,15 +104,12 @@ func makeImageDataURL(img image.ProcessedImage) (string, error) {
 	if contentType == "" {
 		contentType = "image/jpeg"
 	}
-
 	data, err := os.ReadFile(img.Path)
 	if err != nil {
 		return "", err
 	}
-
 	if len(data) == 0 {
 		return "", fmt.Errorf("image file is empty: %s", img.Path)
 	}
-
 	return fmt.Sprintf("data:%s;base64,%s", contentType, base64.StdEncoding.EncodeToString(data)), nil
 }

@@ -39,7 +39,6 @@ func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, 
 		speech:    sp,
 		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
-	// Задаём первый характер при старте
 	n := len(cfg.CharacterList)
 	r.characterPrompt = cfg.CharacterList[r.rnd.Intn(n)]
 	return r
@@ -47,7 +46,7 @@ func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, 
 
 // SendMessage выполняет сценарий «Послать запрос» один раз.
 func (r *Requester) SendMessage(ctx context.Context) (string, error) {
-	var text string
+	var userPrompt string
 
 	var b strings.Builder
 	b.WriteString(r.cfg.SpeechHeader)
@@ -64,18 +63,17 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 	}
 
 	if !usedSpeech {
-		// выберем фиксированное сообщение
 		msg := "доложи статус"
-		if n := len(r.cfg.FixedMessage); n > 0 {
-			msg = r.cfg.FixedMessage[r.rnd.Intn(n)]
+		if n := len(r.cfg.SpeechPrompt); n > 0 {
+			msg = r.cfg.SpeechPrompt[r.rnd.Intn(n)]
 		}
 		b.WriteString("\n- ")
 		b.WriteString(msg)
 	}
 
-	text = b.String()
+	userPrompt = b.String()
 
-	// 1. Найти N последних картинок
+	// Найти последние N картинок
 	paths, err := r.pickLastImages(r.cfg.ImagesSourceDir, r.cfg.ImagesToPick)
 	if err != nil {
 		return "", err
@@ -85,7 +83,7 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 		return "", nil
 	}
 
-	// 2. Подготовить метаданные изображений для отправки (без дополнительной обработки)
+	// Подготовить метаданные изображений для отправки (без доп. обработки)
 	processed := make([]image.ProcessedImage, 0, len(paths))
 	for _, p := range paths {
 		processed = append(processed, image.ProcessedImage{
@@ -98,14 +96,14 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 		return "", nil
 	}
 
-	// Ротация характера: каждые N успешных сообщений выбираем новый характер
+	// Ротация характера: каждые N успешных сообщений выбираем новый
 	if r.cfg.RotateConversationEach > 0 && r.requestCount >= r.cfg.RotateConversationEach {
 		n := len(r.cfg.CharacterList)
 		r.characterPrompt = r.cfg.CharacterList[r.rnd.Intn(n)]
 		r.requestCount = 0
 	}
 
-	// 4. Сформировать историю ответов с заголовком из конфига
+	// Собрать историю с заголовком из конфига
 	history := r.localConv.History()
 	historyWithHeader := history
 	if len(history) > 0 {
@@ -118,9 +116,15 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 		historyWithHeader = append(historyWithHeader, history...)
 	}
 
-	// 6. Отправить сообщение с изображениями (stateless)
-	r.logger.Infow("Отправка сообщения", "characterPrompt", r.characterPrompt, "text", text)
-	resp, err := r.companion.SendMessageWithImage(ctx, r.characterPrompt, r.cfg.AssistantPrompt, text, historyWithHeader, processed)
+	// Конкатенируем историю с текущим текстом
+	if len(historyWithHeader) > 0 {
+		joined := strings.Join(historyWithHeader, "\n")
+		userPrompt = joined + "\n" + userPrompt
+	}
+
+	// Отправить сообщение с изображениями (stateless)
+	r.logger.Infow("Отправка сообщения", "userPrompt", userPrompt, "characterPrompt", r.characterPrompt)
+	resp, err := r.companion.SendMessageWithImage(ctx, r.characterPrompt, r.cfg.AssistantPrompt, userPrompt, processed)
 	if err != nil {
 		return "", err
 	}
@@ -193,6 +197,3 @@ func (r *Requester) pickLastImages(dir string, n int) ([]string, error) {
 	}
 	return out, nil
 }
-
-// cleanupOldImages удаляет файлы изображений старше ttl в указанных директориях.
-// Очистка старых изображений вынесена в image.Cleaner и запускается из scheduler
