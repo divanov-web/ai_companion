@@ -8,6 +8,7 @@ import (
 	"OpenAIClient/internal/app/screenshotter"
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service/companion"
+	"OpenAIClient/internal/service/notify"
 	"OpenAIClient/internal/service/speech"
 	"OpenAIClient/internal/service/stt/handy"
 	"context"
@@ -76,7 +77,10 @@ func main() {
 		}
 	}()
 
-	req := requester.New(cfg, comp, sp, sugar)
+	// Нотификатор звука — путь берём из конфига (env/флаг), конструктор сам найдёт дефолт, если пусто
+	notifier := notify.NewSoundNotifier(sugar, cfg.NotificationSoundPath)
+
+	req := requester.New(cfg, comp, sp, notifier, sugar)
 	// запускаем скриншоттер в отдельной горутине
 	scr := screenshotter.New(cfg, sugar)
 	go scr.Run(ctx)

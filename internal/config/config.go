@@ -10,15 +10,16 @@ import (
 )
 
 type Config struct {
-	DebugMode         bool     `env:"DEBUG_MODE"`                      //Режим дебага
-	AssistantPrompt   string   `env:"ASSISTANT_PROMPT"`                //Текст промпта ассистента диалога
-	CharacterList     []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
-	SpeechPrompt      []string `env:"SPEECH_PROMPT" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
-	ImagesSourceDir   string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
-	ImagesToPick      int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
-	ImagesTTLSeconds  int      `env:"IMAGES_TTL_SECONDS"`              // Время, через которое картинки считаются старыми и их надо удалить, в секундах
-	HistoryHeader     string   `env:"HISTORY_HEADER"`                  // Заголовок блока с историей ответов ИИ
-	MaxHistoryRecords int      `env:"MAX_HISTORY_RECORDS"`             // Максимум хранимых ответов ИИ в локальной истории
+	DebugMode             bool     `env:"DEBUG_MODE"`                      //Режим дебага
+	AssistantPrompt       string   `env:"ASSISTANT_PROMPT"`                //Текст промпта ассистента диалога
+	CharacterList         []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
+	SpeechPrompt          []string `env:"SPEECH_PROMPT" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
+	ImagesSourceDir       string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
+	ImagesToPick          int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
+	ImagesTTLSeconds      int      `env:"IMAGES_TTL_SECONDS"`              // Время, через которое картинки считаются старыми и их надо удалить, в секундах
+	HistoryHeader         string   `env:"HISTORY_HEADER"`                  // Заголовок блока с историей ответов ИИ
+	MaxHistoryRecords     int      `env:"MAX_HISTORY_RECORDS"`             // Максимум хранимых ответов ИИ в локальной истории
+	NotificationSoundPath string   `env:"NOTIFICATION_SOUND_PATH"`         // Путь к звуковому файлу уведомления
 	// Скриншоттер
 	ScreenshotIntervalSeconds int             `env:"SCREENSHOT_INTERVAL_SECONDS"` // Периодичность снятия скриншотов всего экрана, в секундах
 	YandexTTS                 YandexTTSConfig // Конфигурация TTS (Yandex SpeechKit)
@@ -42,7 +43,7 @@ type Config struct {
 type YandexTTSConfig struct {
 	APIKey  string `env:"YC_TTS_API_KEY"` // Ключ берём из .env/ENV. Если пуст — при использовании будет ошибка
 	Voice   string `env:"YC_TTS_VOICE"`   // Голос, по умолчанию filipp
-	Format  string `env:"YC_TTS_FORMAT"`  // mp3|wav|oggopus, по умолчанию mp3
+	Format  string `env:"YC_TTS_FORMAT"`  // mp3|wav, по умолчанию mp3
 	Speed   string `env:"YC_TTS_SPEED"`   // Скорость синтеза (1.0 по умолчанию в API); 1.3 = ~30% быстрее
 	Emotion string `env:"YC_TTS_EMOTION"` // Эмоциональная окраска: neutral|good|evil. По умолчанию evil
 	Volume  int    `env:"YC_TTS_VOLUME"`  // Громкость 0-100; 100 — не изменять громкость todo вероятно есть баг, что громкость уменьшается слишком быстро
@@ -69,6 +70,7 @@ func Defaults() *Config {
 		TickTimeoutSeconds:     60,
 		OverlapPolicy:          "skip", //`skip`|`preempt`
 		MaxConsecutiveErrors:   3,
+		NotificationSoundPath:  "sound/notification2.mp3",
 		// STT/Speech
 		STTHandyWindow:  time.Second,
 		STTHotkeyDelay:  100 * time.Millisecond,
@@ -108,6 +110,8 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.ImagesSourceDir, "images-source-dir", cfg.ImagesSourceDir, "путь к папке с исходными изображениями")
 	flag.IntVar(&cfg.ImagesToPick, "images-to-pick", cfg.ImagesToPick, "количество последних изображений для отправки")
 	flag.IntVar(&cfg.ImagesTTLSeconds, "images-ttl-seconds", cfg.ImagesTTLSeconds, "время, через которое картинки считаются старыми и их надо удалить, в секундах")
+	// Звук уведомления
+	flag.StringVar(&cfg.NotificationSoundPath, "notification-sound-path", cfg.NotificationSoundPath, "путь к звуковому файлу уведомления (mp3 или wav)")
 	// Скриншоттер
 	flag.IntVar(&cfg.ScreenshotIntervalSeconds, "screenshot-interval-seconds", cfg.ScreenshotIntervalSeconds, "периодичность снятия скриншотов всего экрана, в секундах")
 	// Таймер

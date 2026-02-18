@@ -5,6 +5,7 @@ import (
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service/companion"
 	"OpenAIClient/internal/service/image"
+	"OpenAIClient/internal/service/notify"
 	"OpenAIClient/internal/service/speech"
 	"cmp"
 	"context"
@@ -25,18 +26,20 @@ type Requester struct {
 	logger          *zap.SugaredLogger
 	localConv       *localconversation.LocalConversation
 	speech          *speech.Speech
+	notifier        *notify.SoundNotifier
 	rnd             *rand.Rand
 	requestCount    int // Количество успешных отправок в текущем диалоге
 	characterPrompt string
 }
 
-func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, logger *zap.SugaredLogger) *Requester {
+func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, notifier *notify.SoundNotifier, logger *zap.SugaredLogger) *Requester {
 	r := &Requester{
 		cfg:       cfg,
 		companion: companion,
 		logger:    logger,
 		localConv: localconversation.New("", cfg.MaxHistoryRecords),
 		speech:    sp,
+		notifier:  notifier,
 		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 	n := len(cfg.CharacterList)
@@ -124,6 +127,12 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 
 	// Отправить сообщение с изображениями (stateless)
 	r.logger.Infow("Отправка сообщения", "userPrompt", userPrompt, "characterPrompt", r.characterPrompt)
+	// Проиграть звук уведомления перед отправкой
+	if r.notifier != nil {
+		if err := r.notifier.Play(ctx); err != nil {
+			r.logger.Debugw("Ошибка проигрывания звука уведомления (пропускаем)", "error", err)
+		}
+	}
 	resp, err := r.companion.SendMessageWithImage(ctx, r.characterPrompt, r.cfg.AssistantPrompt, userPrompt, processed)
 	if err != nil {
 		return "", err
