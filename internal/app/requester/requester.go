@@ -75,6 +75,7 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 	}
 
 	userPrompt = b.String()
+	userSpeech := userPrompt
 
 	// Найти последние N картинок
 	paths, err := r.pickLastImages(r.cfg.ImagesSourceDir, r.cfg.ImagesToPick)
@@ -125,8 +126,8 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 		userPrompt = joined + "\n" + userPrompt
 	}
 
-	// Отправить сообщение с изображениями (stateless)
-	r.logger.Infow("Отправка сообщения", "userPrompt", userPrompt, "characterPrompt", r.characterPrompt)
+	// Отправить сообщение с изображениями (stateless)Давно ли мы не были в море?
+	r.logger.Infow("Отправка сообщения", "userSpeech", userSpeech, "characterPrompt", r.characterPrompt)
 	// Проиграть звук уведомления перед отправкой
 	if r.notifier != nil {
 		if err := r.notifier.Play(ctx); err != nil {
