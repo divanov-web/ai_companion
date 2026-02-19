@@ -1,12 +1,14 @@
 package main
 
 import (
+	chatadapter "OpenAIClient/internal/adapter/chat/twitch"
 	"OpenAIClient/internal/adapter/conversation"
 	"OpenAIClient/internal/adapter/message"
 	"OpenAIClient/internal/app/requester"
 	"OpenAIClient/internal/app/scheduler"
 	"OpenAIClient/internal/app/screenshotter"
 	"OpenAIClient/internal/config"
+	chatsvc "OpenAIClient/internal/service/chat"
 	"OpenAIClient/internal/service/companion"
 	"OpenAIClient/internal/service/notify"
 	"OpenAIClient/internal/service/speech"
@@ -55,6 +57,9 @@ func main() {
 	// Speech — буфер сообщений из STT
 	sp := speech.New(cfg.SpeechMax)
 
+	// Chat — буфер сообщений из Twitch-чата
+	ch := chatsvc.New(cfg.ChatMax)
+
 	// STT Handy listener — фоновый запуск
 	stt := handy.New(handy.Config{HandyWindow: cfg.STTHandyWindow, HotkeyDelay: cfg.STTHotkeyDelay})
 	go func() {
@@ -79,8 +84,16 @@ func main() {
 
 	// Нотификатор звука — путь берём из конфига (env/флаг), конструктор сам найдёт дефолт, если пусто
 	notifier := notify.NewSoundNotifier(sugar, cfg.NotificationSoundPath)
+	// Запуск Twitch IRC слушателя фоновой горутиной (если конфигурация задана)
+	go func() {
+		_ = chatadapter.Run(ctx, sugar, chatadapter.Config{
+			Username: cfg.TwitchUsername,
+			OAuth:    cfg.TwitchOAuthToken,
+			Channel:  cfg.TwitchChannel,
+		}, ch)
+	}()
 
-	req := requester.New(cfg, comp, sp, notifier, sugar)
+	req := requester.New(cfg, comp, sp, ch, notifier, sugar)
 	// запускаем скриншоттер в отдельной горутине
 	scr := screenshotter.New(cfg, sugar)
 	go scr.Run(ctx)

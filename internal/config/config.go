@@ -37,6 +37,13 @@ type Config struct {
 	SpeechHeader    string        `env:"SPEECH_HEADER"`     // Заголовок для блока сообщений из речи
 	SpeechMax       int           `env:"SPEECH_MAX"`        // Максимум хранимых сообщений речи
 	EnableEarlyTick bool          `env:"ENABLE_EARLY_TICK"` // Запускать тик ранее при наличии сообщений речи
+
+	// Chat / Twitch
+	ChatHistoryHeader string `env:"CHAT_HISTORY_HEADER"` // Заголовок блока сообщений из чата
+	ChatMax           int    `env:"CHAT_MAX"`            // Максимум хранимых сообщений чата
+	TwitchUsername    string `env:"TWITCH_USERNAME"`     // Имя пользователя Twitch (логин)
+	TwitchOAuthToken  string `env:"TWITCH_OAUTH_TOKEN"`  // OAuth токен Twitch (может быть без префикса oauth:)
+	TwitchChannel     string `env:"TWITCH_CHANNEL"`      // Канал Twitch (один), без #
 }
 
 // YandexTTSConfig конфигурация для синтеза речи через Yandex SpeechKit.
@@ -76,6 +83,9 @@ func Defaults() *Config {
 		STTHotkeyDelay:  100 * time.Millisecond,
 		SpeechMax:       10,
 		EnableEarlyTick: true,
+		// Chat/Twitch
+		ChatHistoryHeader: "Сообщения из чата",
+		ChatMax:           30,
 		YandexTTS: YandexTTSConfig{
 			APIKey:  "", // ключ берём из .env/ENV, если пусто — будет ошибка при использовании
 			Voice:   "omazh",
@@ -120,6 +130,12 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.OverlapPolicy, "overlap-policy", cfg.OverlapPolicy, "политика наложения тиков: skip|preempt")
 	flag.IntVar(&cfg.MaxConsecutiveErrors, "max-consecutive-errors", cfg.MaxConsecutiveErrors, "количество последовательных ошибок до остановки приложения")
 	flag.IntVar(&cfg.RotateConversationEach, "rotate-conversation-each", cfg.RotateConversationEach, "каждые N успешных запросов начинать новый диалог")
+	// Chat/Twitch
+	flag.StringVar(&cfg.ChatHistoryHeader, "chat-history-header", cfg.ChatHistoryHeader, "заголовок блока с сообщениями чата")
+	flag.IntVar(&cfg.ChatMax, "chat-max", cfg.ChatMax, "максимум хранимых сообщений чата")
+	flag.StringVar(&cfg.TwitchUsername, "twitch-username", cfg.TwitchUsername, "логин Twitch для подключения к чату")
+	flag.StringVar(&cfg.TwitchOAuthToken, "twitch-oauth-token", cfg.TwitchOAuthToken, "OAuth токен Twitch (может быть без префикса oauth:)")
+	flag.StringVar(&cfg.TwitchChannel, "twitch-channel", cfg.TwitchChannel, "канал Twitch (без #)")
 	// Параметры Yandex TTS
 	flag.StringVar(&cfg.YandexTTS.APIKey, "yc-tts-api-key", cfg.YandexTTS.APIKey, "API ключ Yandex SpeechKit TTS (перекрывает ENV)")
 	flag.StringVar(&cfg.YandexTTS.Voice, "yc-tts-voice", cfg.YandexTTS.Voice, "голос для синтеза (напр. filipp, jane, oksana, zahar, ermil)")

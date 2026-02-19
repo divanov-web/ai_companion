@@ -3,6 +3,8 @@ package requester
 import (
 	"OpenAIClient/internal/adapter/localconversation"
 	"OpenAIClient/internal/config"
+	"OpenAIClient/internal/consts"
+	"OpenAIClient/internal/service/chat"
 	"OpenAIClient/internal/service/companion"
 	"OpenAIClient/internal/service/image"
 	"OpenAIClient/internal/service/notify"
@@ -26,19 +28,21 @@ type Requester struct {
 	logger          *zap.SugaredLogger
 	localConv       *localconversation.LocalConversation
 	speech          *speech.Speech
+	chat            *chat.Chat
 	notifier        *notify.SoundNotifier
 	rnd             *rand.Rand
 	requestCount    int // Количество успешных отправок в текущем диалоге
 	characterPrompt string
 }
 
-func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, notifier *notify.SoundNotifier, logger *zap.SugaredLogger) *Requester {
+func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, ch *chat.Chat, notifier *notify.SoundNotifier, logger *zap.SugaredLogger) *Requester {
 	r := &Requester{
 		cfg:       cfg,
 		companion: companion,
 		logger:    logger,
 		localConv: localconversation.New("", cfg.MaxHistoryRecords),
 		speech:    sp,
+		chat:      ch,
 		notifier:  notifier,
 		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
@@ -120,10 +124,32 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 		historyWithHeader = append(historyWithHeader, history...)
 	}
 
-	// Конкатенируем историю с текущим текстом
+	// Конкатенируем историю с текущим текстом, добавляя разделитель перед историей
 	if len(historyWithHeader) > 0 {
 		joined := strings.Join(historyWithHeader, "\n")
-		userPrompt = joined + "\n" + userPrompt
+		userPrompt = "\n" + consts.AISectionSep + "\n" + joined + "\n" + userPrompt
+	}
+
+	// ВСТАВИТЬ блок сообщений из чата в самый конец промпта пользователя
+	if r.chat != nil {
+		if msgs := r.chat.Drain(); len(msgs) > 0 {
+			header := r.cfg.ChatHistoryHeader
+			if strings.TrimSpace(header) == "" {
+				header = "Сообщения из чата"
+			}
+			// Собираем блок: заголовок + сообщения (каждое с новой строки)
+			bChat := strings.Builder{}
+			bChat.WriteString("\n")
+			bChat.WriteString(consts.AISectionSep)
+			bChat.WriteString("\n")
+			bChat.WriteString(header)
+			for _, m := range msgs {
+				bChat.WriteString("\n")
+				bChat.WriteString(m)
+			}
+			// Добавляем в КОНЕЦ уже сформированного userPrompt
+			userPrompt = userPrompt + bChat.String()
+		}
 	}
 
 	// Отправить сообщение с изображениями (stateless)Давно ли мы не были в море?
