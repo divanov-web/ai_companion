@@ -27,6 +27,11 @@ func New(cfg *config.Config, logger *zap.SugaredLogger) *Screenshotter {
 // Run запускает бесконечный цикл снятия скриншотов всего экрана.
 // Блокирующий метод; обычно запускается в отдельной горутине.
 func (s *Screenshotter) Run(ctx context.Context) {
+	// Фича-флаг: при выключенном скриншоттере просто выходим
+	if s.cfg != nil && !s.cfg.ScreenshotEnabled {
+		s.logger.Infow("Screenshotter is disabled by config")
+		return
+	}
 	interval := time.Duration(max(1, s.cfg.ScreenshotIntervalSeconds)) * time.Second
 	t := time.NewTicker(interval)
 	defer t.Stop()

@@ -44,6 +44,12 @@ type Config struct {
 	TwitchUsername    string `env:"TWITCH_USERNAME"`     // Имя пользователя Twitch (логин)
 	TwitchOAuthToken  string `env:"TWITCH_OAUTH_TOKEN"`  // OAuth токен Twitch (может быть без префикса oauth:)
 	TwitchChannel     string `env:"TWITCH_CHANNEL"`      // Канал Twitch (один), без #
+
+	// EventServer — приёмник игровых событий (например, Dota GSI)
+	EventServer EventServerConfig
+
+	// Screenshotter — включение/выключение фоновой съёмки скриншотов
+	ScreenshotEnabled bool `env:"SCREENSHOT_ENABLED"` // По умолчанию включён
 }
 
 // YandexTTSConfig конфигурация для синтеза речи через Yandex SpeechKit.
@@ -54,6 +60,14 @@ type YandexTTSConfig struct {
 	Speed   string `env:"YC_TTS_SPEED"`   // Скорость синтеза (1.0 по умолчанию в API); 1.3 = ~30% быстрее
 	Emotion string `env:"YC_TTS_EMOTION"` // Эмоциональная окраска: neutral|good|evil. По умолчанию evil
 	Volume  int    `env:"YC_TTS_VOLUME"`  // Громкость 0-100; 100 — не изменять громкость todo вероятно есть баг, что громкость уменьшается слишком быстро
+}
+
+// EventServerConfig конфигурация сервиса приёма игровых событий.
+type EventServerConfig struct {
+	Enabled   bool   `env:"EVENT_SERVER_ENABLED"`    // Главный флаг включения/выключения
+	BindAddr  string `env:"EVENT_SERVER_BIND_ADDR"`  // Адрес слушателя, напр. 127.0.0.1:3000
+	Path      string `env:"EVENT_SERVER_PATH"`       // HTTP‑путь, напр. "/"
+	AuthToken string `env:"EVENT_SERVER_AUTH_TOKEN"` // Токен авторизации (позже можно проверять)
 }
 
 // Defaults возвращает конфигурацию с предустановленными значениями по умолчанию.
@@ -71,6 +85,7 @@ func Defaults() *Config {
 		SpeechHeader:              "Моя реплика",
 		MaxHistoryRecords:         10,
 		ScreenshotIntervalSeconds: 2,
+		ScreenshotEnabled:         true,
 		// Таймер по умолчанию
 		RotateConversationEach: 3,
 		TimerIntervalSeconds:   10,
@@ -93,6 +108,11 @@ func Defaults() *Config {
 			Speed:   "1.3",  // ускорение речи ~30% относительно дефолта 1.0
 			Emotion: "evil", // эмоциональная окраска по умолчанию
 			Volume:  100,    // 0-100, 100 — громкость не меняем
+		},
+		EventServer: EventServerConfig{
+			Enabled:  false,
+			BindAddr: "127.0.0.1:3000",
+			Path:     "/",
 		},
 	}
 }
@@ -124,6 +144,7 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.NotificationSoundPath, "notification-sound-path", cfg.NotificationSoundPath, "путь к звуковому файлу уведомления (mp3 или wav)")
 	// Скриншоттер
 	flag.IntVar(&cfg.ScreenshotIntervalSeconds, "screenshot-interval-seconds", cfg.ScreenshotIntervalSeconds, "периодичность снятия скриншотов всего экрана, в секундах")
+	flag.BoolVar(&cfg.ScreenshotEnabled, "screenshot-enabled", cfg.ScreenshotEnabled, "включить фоновую съёмку скриншотов (Screenshotter)")
 	// Таймер
 	flag.IntVar(&cfg.TimerIntervalSeconds, "timer-interval-seconds", cfg.TimerIntervalSeconds, "базовый интервал таймера в секундах")
 	flag.IntVar(&cfg.TickTimeoutSeconds, "tick-timeout-seconds", cfg.TickTimeoutSeconds, "таймаут одного тика в секундах")
@@ -149,6 +170,12 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.SpeechHeader, "speech-header", cfg.SpeechHeader, "заголовок блока сообщений из речи (Speech)")
 	flag.IntVar(&cfg.SpeechMax, "speech-max", cfg.SpeechMax, "максимум хранимых сообщений в Speech")
 	flag.BoolVar(&cfg.EnableEarlyTick, "enable-early-tick", cfg.EnableEarlyTick, "запускать ранний тик при наличии сообщений из Speech")
+
+	// EventServer
+	flag.BoolVar(&cfg.EventServer.Enabled, "event-server-enabled", cfg.EventServer.Enabled, "включить приёмник игровых событий (EventServer)")
+	flag.StringVar(&cfg.EventServer.BindAddr, "event-server-bind-addr", cfg.EventServer.BindAddr, "адрес для прослушивания EventServer (напр. 127.0.0.1:3000)")
+	flag.StringVar(&cfg.EventServer.Path, "event-server-path", cfg.EventServer.Path, "HTTP путь EventServer (напр. /)")
+	flag.StringVar(&cfg.EventServer.AuthToken, "event-server-auth-token", cfg.EventServer.AuthToken, "токен авторизации EventServer (опционально)")
 	flag.Parse()
 
 	// Разбор списков по общему правилу (trim + убрать пустые), дефолты различаются

@@ -10,6 +10,7 @@ import (
 	"OpenAIClient/internal/config"
 	chatsvc "OpenAIClient/internal/service/chat"
 	"OpenAIClient/internal/service/companion"
+	"OpenAIClient/internal/service/events/dota"
 	"OpenAIClient/internal/service/notify"
 	"OpenAIClient/internal/service/speech"
 	"OpenAIClient/internal/service/stt/handy"
@@ -71,6 +72,16 @@ func main() {
 			}
 		}
 	}()
+
+	// EventServer (Dota GSI) — запуск в отдельной горутине при включённой конфигурации
+	if cfg.EventServer.Enabled {
+		dotaSrv := dota.NewDotaEventServer(cfg.EventServer, sugar)
+		if err := dotaSrv.Start(ctx); err != nil {
+			sugar.Errorw("failed to start DotaEventServer", "error", err)
+		} else {
+			sugar.Infow("DotaEventServer started", "addr", cfg.EventServer.BindAddr, "path", cfg.EventServer.Path)
+		}
+	}
 	// Подписка на события STT
 	go func() {
 		for ev := range stt.Events() {
@@ -94,9 +105,13 @@ func main() {
 	}()
 
 	req := requester.New(cfg, comp, sp, ch, notifier, sugar)
-	// запускаем скриншоттер в отдельной горутине
-	scr := screenshotter.New(cfg, sugar)
-	go scr.Run(ctx)
+	// запускаем скриншоттер в отдельной горутине, если включён в конфиге
+	if cfg.ScreenshotEnabled {
+		scr := screenshotter.New(cfg, sugar)
+		go scr.Run(ctx)
+	} else {
+		sugar.Infow("Screenshotter is disabled by config; not starting")
+	}
 	sch := scheduler.New(cfg, req, sp, sugar)
 	if err := sch.Run(ctx); err != nil {
 		if errors.Is(err, context.Canceled) {
