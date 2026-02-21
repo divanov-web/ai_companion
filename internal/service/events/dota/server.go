@@ -98,9 +98,17 @@ func (s *DotaStateServer) handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Сохраняем сырое сообщение в State, если он подключен
+	// Преобразуем сырое GSI-сообщение в компактную структуру "Eyes"
 	if s.state != nil {
-		s.state.Add(string(body))
+		if eyes, err := TransformToEyes(body); err == nil && len(eyes) > 0 {
+			// сохраняем уже обработанный компактный JSON
+			s.state.Add(string(eyes))
+		} else if err == nil {
+			// пустой результат — ничего не добавляем
+		} else {
+			// в случае ошибки трансформации не падаем — пишем сырой json как fallback
+			s.state.Add(string(body))
+		}
 	}
 
 	// По требованию: выводить в консоль весь JSON вместо отдельного поля map.
