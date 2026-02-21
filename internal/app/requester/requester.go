@@ -56,20 +56,39 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 	var userPrompt string
 
 	var b strings.Builder
-	b.WriteString(r.cfg.SpeechHeader)
 
-	usedSpeech := false
+	// Подготовим сообщения из речи
+	speechMsgs := []string(nil)
 	if r.speech != nil {
 		if msgs := r.speech.Drain(); len(msgs) > 0 {
-			for _, m := range msgs {
-				b.WriteString("\n- ")
-				b.WriteString(m)
-			}
-			usedSpeech = true
+			speechMsgs = msgs
 		}
 	}
 
-	if !usedSpeech {
+	// Подготовим сообщения из чата (нужно знать, есть ли они, чтобы решать про SpeechPrompt)
+	chatMsgs := []string(nil)
+	if r.chat != nil {
+		if msgs := r.chat.Drain(); len(msgs) > 0 {
+			chatMsgs = msgs
+		}
+	}
+
+	// Решаем, нужно ли добавлять r.cfg.SpeechPrompt: только если нет ни речи, ни чата
+	includePrompt := len(speechMsgs) == 0 && len(chatMsgs) == 0
+
+	// Добавлять r.cfg.SpeechHeader нужно только если будет хотя бы один из: речь или prompt
+	if (len(speechMsgs) > 0 || includePrompt) && strings.TrimSpace(r.cfg.SpeechHeader) != "" {
+		b.WriteString(r.cfg.SpeechHeader)
+	}
+
+	// Добавим сообщения речи
+	for _, m := range speechMsgs {
+		b.WriteString("\n- ")
+		b.WriteString(m)
+	}
+
+	// Если нужно, добавим один случайный prompt из списка (или дефолт)
+	if includePrompt {
 		msg := "доложи статус"
 		if n := len(r.cfg.SpeechPrompt); n > 0 {
 			msg = r.cfg.SpeechPrompt[r.rnd.Intn(n)]
@@ -131,25 +150,23 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 	}
 
 	// ВСТАВИТЬ блок сообщений из чата в самый конец промпта пользователя
-	if r.chat != nil {
-		if msgs := r.chat.Drain(); len(msgs) > 0 {
-			header := r.cfg.ChatHistoryHeader
-			if strings.TrimSpace(header) == "" {
-				header = "Сообщения из чата"
-			}
-			// Собираем блок: заголовок + сообщения (каждое с новой строки)
-			bChat := strings.Builder{}
-			bChat.WriteString("\n")
-			bChat.WriteString(consts.AISectionSep)
-			bChat.WriteString("\n")
-			bChat.WriteString(header)
-			for _, m := range msgs {
-				bChat.WriteString("\n")
-				bChat.WriteString(m)
-			}
-			// Добавляем в КОНЕЦ уже сформированного userPrompt
-			userPrompt = userPrompt + bChat.String()
+	if len(chatMsgs) > 0 {
+		header := r.cfg.ChatHistoryHeader
+		if strings.TrimSpace(header) == "" {
+			header = "Сообщения из чата"
 		}
+		// Собираем блок: заголовок + сообщения (каждое с новой строки)
+		bChat := strings.Builder{}
+		bChat.WriteString("\n")
+		bChat.WriteString(consts.AISectionSep)
+		bChat.WriteString("\n")
+		bChat.WriteString(header)
+		for _, m := range chatMsgs {
+			bChat.WriteString("\n")
+			bChat.WriteString(m)
+		}
+		// Добавляем в КОНЕЦ уже сформированного userPrompt
+		userPrompt = userPrompt + bChat.String()
 	}
 
 	// Отправить сообщение с изображениями (stateless)Давно ли мы не были в море?

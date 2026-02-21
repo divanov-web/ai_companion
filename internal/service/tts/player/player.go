@@ -47,10 +47,11 @@ func playWAV(r io.ReadCloser, volDB float64) error {
 	if err := speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10)); err != nil {
 		return err
 	}
+	// Интерпретируем volDB как децибелы: линейный коэффициент = 10^(dB/20)
 	vol := &effects.Volume{
 		Streamer: streamer,
-		Base:     2,
-		Volume:   volDB,
+		Base:     10,
+		Volume:   volDB / 20.0,
 		Silent:   false,
 	}
 	done := make(chan struct{})
@@ -69,10 +70,11 @@ func playMP3(r io.ReadCloser, volDB float64) error {
 	if err := speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10)); err != nil {
 		return err
 	}
+	// Интерпретируем volDB как децибелы: линейный коэффициент = 10^(dB/20)
 	vol := &effects.Volume{
 		Streamer: streamer,
-		Base:     2,
-		Volume:   volDB,
+		Base:     10,
+		Volume:   volDB / 20.0,
 		Silent:   false,
 	}
 	done := make(chan struct{})
