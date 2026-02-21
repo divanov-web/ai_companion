@@ -9,6 +9,7 @@ import (
 	"OpenAIClient/internal/service/image"
 	"OpenAIClient/internal/service/notify"
 	"OpenAIClient/internal/service/speech"
+	st "OpenAIClient/internal/service/state"
 	"cmp"
 	"context"
 	"errors"
@@ -28,6 +29,7 @@ type Requester struct {
 	logger          *zap.SugaredLogger
 	localConv       *localconversation.LocalConversation
 	speech          *speech.Speech
+	state           *st.State
 	chat            *chat.Chat
 	notifier        *notify.SoundNotifier
 	rnd             *rand.Rand
@@ -35,13 +37,14 @@ type Requester struct {
 	characterPrompt string
 }
 
-func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, ch *chat.Chat, notifier *notify.SoundNotifier, logger *zap.SugaredLogger) *Requester {
+func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, stbuf *st.State, ch *chat.Chat, notifier *notify.SoundNotifier, logger *zap.SugaredLogger) *Requester {
 	r := &Requester{
 		cfg:       cfg,
 		companion: companion,
 		logger:    logger,
 		localConv: localconversation.New("", cfg.MaxHistoryRecords),
 		speech:    sp,
+		state:     stbuf,
 		chat:      ch,
 		notifier:  notifier,
 		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
@@ -70,6 +73,14 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 	if r.chat != nil {
 		if msgs := r.chat.Drain(); len(msgs) > 0 {
 			chatMsgs = msgs
+		}
+	}
+
+	// Подготовим сообщения из State
+	stateMsgs := []string(nil)
+	if r.state != nil {
+		if msgs := r.state.Drain(); len(msgs) > 0 {
+			stateMsgs = msgs
 		}
 	}
 
@@ -105,8 +116,9 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(paths) == 0 {
-		r.logger.Infow("Нет доступных изображений для отправки", "dir", r.cfg.ImagesSourceDir)
+	// Новая логика: если нет И изображений, И сообщений из State — не отправляем
+	if len(paths) == 0 && len(stateMsgs) == 0 {
+		r.logger.Infow("Нет данных для отправки: нет изображений и нет сообщений из State", "dir", r.cfg.ImagesSourceDir)
 		return "", nil
 	}
 
@@ -118,10 +130,7 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 			MimeType: "image/jpeg",
 		})
 	}
-	if len(processed) == 0 {
-		r.logger.Infow("После обработки не осталось валидных изображений")
-		return "", nil
-	}
+	// Позволяем пустой список изображений — адаптер должен уметь отправлять без картинок
 
 	// Ротация характера: каждые N успешных сообщений выбираем новый
 	if r.cfg.RotateConversationEach > 0 && r.requestCount >= r.cfg.RotateConversationEach {
@@ -169,15 +178,35 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 		userPrompt = userPrompt + bChat.String()
 	}
 
-	// Отправить сообщение с изображениями (stateless)Давно ли мы не были в море?
-	r.logger.Infow("Отправка сообщения", "userSpeech", userSpeech, "characterPrompt", r.characterPrompt)
+	// Подготовить assistantPrompt: возможно добавить блок State в самый низ
+	assistantPrompt := r.cfg.AssistantPrompt
+	if len(stateMsgs) > 0 {
+		header := strings.TrimSpace(r.cfg.StateHeader)
+		if header == "" {
+			header = "Состояние игры"
+		}
+		var sb strings.Builder
+		sb.WriteString("")
+		sb.WriteString("\n")
+		sb.WriteString(consts.AISectionSep)
+		sb.WriteString("\n")
+		sb.WriteString(header)
+		for _, m := range stateMsgs {
+			sb.WriteString("\n")
+			sb.WriteString(m)
+		}
+		assistantPrompt = assistantPrompt + sb.String()
+	}
+
+	// Отправить сообщение (возможно без изображений)
+	r.logger.Infow("Отправка сообщения", "userSpeech", userSpeech, "characterPrompt", r.characterPrompt, "images", len(processed), "stateMsgs", len(stateMsgs))
 	// Проиграть звук уведомления перед отправкой
 	if r.notifier != nil {
 		if err := r.notifier.Play(ctx); err != nil {
 			r.logger.Debugw("Ошибка проигрывания звука уведомления (пропускаем)", "error", err)
 		}
 	}
-	resp, err := r.companion.SendMessageWithImage(ctx, r.characterPrompt, r.cfg.AssistantPrompt, userPrompt, processed)
+	resp, err := r.companion.SendMessageWithImage(ctx, r.characterPrompt, assistantPrompt, userPrompt, processed)
 	if err != nil {
 		return "", err
 	}

@@ -13,6 +13,7 @@ import (
 	"OpenAIClient/internal/service/events/dota"
 	"OpenAIClient/internal/service/notify"
 	"OpenAIClient/internal/service/speech"
+	statebuf "OpenAIClient/internal/service/state"
 	"OpenAIClient/internal/service/stt/handy"
 	"context"
 	"errors"
@@ -61,6 +62,9 @@ func main() {
 	// Chat — буфер сообщений из Twitch-чата
 	ch := chatsvc.New(cfg.ChatMax)
 
+	// State — буфер сообщений игрового состояния
+	st := statebuf.New(cfg.StateMax)
+
 	// STT Handy listener — фоновый запуск
 	stt := handy.New(handy.Config{HandyWindow: cfg.STTHandyWindow, HotkeyDelay: cfg.STTHotkeyDelay})
 	go func() {
@@ -73,13 +77,13 @@ func main() {
 		}
 	}()
 
-	// EventServer (Dota GSI) — запуск в отдельной горутине при включённой конфигурации
-	if cfg.EventServer.Enabled {
-		dotaSrv := dota.NewDotaEventServer(cfg.EventServer, sugar)
+	// StateServer (Dota GSI) — запуск в отдельной горутине при включённой конфигурации
+	if cfg.StateServer.Enabled {
+		dotaSrv := dota.NewDotaStateServer(cfg.StateServer, st, sugar)
 		if err := dotaSrv.Start(ctx); err != nil {
-			sugar.Errorw("failed to start DotaEventServer", "error", err)
+			sugar.Errorw("failed to start DotaStateServer", "error", err)
 		} else {
-			sugar.Infow("DotaEventServer started", "addr", cfg.EventServer.BindAddr, "path", cfg.EventServer.Path)
+			sugar.Infow("DotaStateServer started", "addr", cfg.StateServer.BindAddr, "path", cfg.StateServer.Path)
 		}
 	}
 	// Подписка на события STT
@@ -104,7 +108,7 @@ func main() {
 		}, ch)
 	}()
 
-	req := requester.New(cfg, comp, sp, ch, notifier, sugar)
+	req := requester.New(cfg, comp, sp, st, ch, notifier, sugar)
 	// запускаем скриншоттер в отдельной горутине, если включён в конфиге
 	if cfg.ScreenshotEnabled {
 		scr := screenshotter.New(cfg, sugar)

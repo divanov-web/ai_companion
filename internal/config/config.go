@@ -45,8 +45,12 @@ type Config struct {
 	TwitchOAuthToken  string `env:"TWITCH_OAUTH_TOKEN"`  // OAuth токен Twitch (может быть без префикса oauth:)
 	TwitchChannel     string `env:"TWITCH_CHANNEL"`      // Канал Twitch (один), без #
 
-	// EventServer — приёмник игровых событий (например, Dota GSI)
-	EventServer EventServerConfig
+	// StateServer — приёмник игрового состояния (например, Dota GSI)
+	StateServer StateServerConfig
+
+	// State — буфер последних сообщений из игрового состояния
+	StateHeader string `env:"STATE_HEADER"` // Заголовок для блока State
+	StateMax    int    `env:"STATE_MAX"`    // Максимум хранимых сообщений State
 
 	// Screenshotter — включение/выключение фоновой съёмки скриншотов
 	ScreenshotEnabled bool `env:"SCREENSHOT_ENABLED"` // По умолчанию включён
@@ -62,12 +66,12 @@ type YandexTTSConfig struct {
 	Volume  int    `env:"YC_TTS_VOLUME"`  // Громкость 0-100; 100 — не изменять громкость todo вероятно есть баг, что громкость уменьшается слишком быстро
 }
 
-// EventServerConfig конфигурация сервиса приёма игровых событий.
-type EventServerConfig struct {
-	Enabled   bool   `env:"EVENT_SERVER_ENABLED"`    // Главный флаг включения/выключения
-	BindAddr  string `env:"EVENT_SERVER_BIND_ADDR"`  // Адрес слушателя, напр. 127.0.0.1:3000
-	Path      string `env:"EVENT_SERVER_PATH"`       // HTTP‑путь, напр. "/"
-	AuthToken string `env:"EVENT_SERVER_AUTH_TOKEN"` // Токен авторизации (позже можно проверять)
+// StateServerConfig конфигурация сервиса приёма игрового состояния.
+type StateServerConfig struct {
+	Enabled   bool   `env:"STATE_SERVER_ENABLED"`    // Главный флаг включения/выключения
+	BindAddr  string `env:"STATE_SERVER_BIND_ADDR"`  // Адрес слушателя, напр. 127.0.0.1:3000
+	Path      string `env:"STATE_SERVER_PATH"`       // HTTP‑путь, напр. "/"
+	AuthToken string `env:"STATE_SERVER_AUTH_TOKEN"` // Токен авторизации (опционально)
 }
 
 // Defaults возвращает конфигурацию с предустановленными значениями по умолчанию.
@@ -109,11 +113,14 @@ func Defaults() *Config {
 			Emotion: "evil", // эмоциональная окраска по умолчанию
 			Volume:  100,    // 0-100, 100 — громкость не меняем
 		},
-		EventServer: EventServerConfig{
+		StateServer: StateServerConfig{
 			Enabled:  false,
 			BindAddr: "127.0.0.1:3000",
 			Path:     "/",
 		},
+		// State
+		StateHeader: "Состояние игры",
+		StateMax:    3,
 	}
 }
 
@@ -171,11 +178,15 @@ func NewConfig() *Config {
 	flag.IntVar(&cfg.SpeechMax, "speech-max", cfg.SpeechMax, "максимум хранимых сообщений в Speech")
 	flag.BoolVar(&cfg.EnableEarlyTick, "enable-early-tick", cfg.EnableEarlyTick, "запускать ранний тик при наличии сообщений из Speech")
 
-	// EventServer
-	flag.BoolVar(&cfg.EventServer.Enabled, "event-server-enabled", cfg.EventServer.Enabled, "включить приёмник игровых событий (EventServer)")
-	flag.StringVar(&cfg.EventServer.BindAddr, "event-server-bind-addr", cfg.EventServer.BindAddr, "адрес для прослушивания EventServer (напр. 127.0.0.1:3000)")
-	flag.StringVar(&cfg.EventServer.Path, "event-server-path", cfg.EventServer.Path, "HTTP путь EventServer (напр. /)")
-	flag.StringVar(&cfg.EventServer.AuthToken, "event-server-auth-token", cfg.EventServer.AuthToken, "токен авторизации EventServer (опционально)")
+	// StateServer
+	flag.BoolVar(&cfg.StateServer.Enabled, "state-server-enabled", cfg.StateServer.Enabled, "включить приёмник игрового состояния (StateServer)")
+	flag.StringVar(&cfg.StateServer.BindAddr, "state-server-bind-addr", cfg.StateServer.BindAddr, "адрес для прослушивания StateServer (напр. 127.0.0.1:3000)")
+	flag.StringVar(&cfg.StateServer.Path, "state-server-path", cfg.StateServer.Path, "HTTP путь StateServer (напр. /)")
+	flag.StringVar(&cfg.StateServer.AuthToken, "state-server-auth-token", cfg.StateServer.AuthToken, "токен авторизации StateServer (опционально)")
+
+	// State buffer
+	flag.StringVar(&cfg.StateHeader, "state-header", cfg.StateHeader, "заголовок блока сообщений из игрового состояния (State)")
+	flag.IntVar(&cfg.StateMax, "state-max", cfg.StateMax, "максимум хранимых сообщений в State")
 	flag.Parse()
 
 	// Разбор списков по общему правилу (trim + убрать пустые), дефолты различаются

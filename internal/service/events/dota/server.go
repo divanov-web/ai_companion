@@ -3,6 +3,7 @@ package dota
 import (
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service/events"
+	st "OpenAIClient/internal/service/state"
 	"context"
 	"errors"
 	"io"
@@ -14,23 +15,24 @@ import (
 )
 
 // Ensure interface compliance
-var _ events.EventServer = (*DotaEventServer)(nil)
+var _ events.StateServer = (*DotaStateServer)(nil)
 
-type DotaEventServer struct {
-	cfg     config.EventServerConfig
+type DotaStateServer struct {
+	cfg     config.StateServerConfig
 	srv     *http.Server
 	logger  *zap.SugaredLogger
 	running atomic.Bool
+	state   *st.State
 }
 
-func NewDotaEventServer(cfg config.EventServerConfig, logger *zap.SugaredLogger) *DotaEventServer {
+func NewDotaStateServer(cfg config.StateServerConfig, stbuf *st.State, logger *zap.SugaredLogger) *DotaStateServer {
 	if cfg.BindAddr == "" {
 		cfg.BindAddr = "127.0.0.1:3000"
 	}
 	if cfg.Path == "" {
 		cfg.Path = "/"
 	}
-	s := &DotaEventServer{cfg: cfg, logger: logger}
+	s := &DotaStateServer{cfg: cfg, logger: logger, state: stbuf}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(cfg.Path, s.handleEvent)
@@ -46,16 +48,16 @@ func NewDotaEventServer(cfg config.EventServerConfig, logger *zap.SugaredLogger)
 	return s
 }
 
-func (s *DotaEventServer) Start(ctx context.Context) error {
+func (s *DotaStateServer) Start(ctx context.Context) error {
 	if !s.running.CompareAndSwap(false, true) {
 		return nil
 	}
 	go func() {
-		s.logger.Infow("DotaEventServer listening", "addr", s.srv.Addr, "path", s.cfg.Path)
+		s.logger.Infow("DotaStateServer listening", "addr", s.srv.Addr, "path", s.cfg.Path)
 		if err := s.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) && err != nil {
-			s.logger.Errorw("DotaEventServer stopped with error", "error", err)
+			s.logger.Errorw("DotaStateServer stopped with error", "error", err)
 		} else {
-			s.logger.Infow("DotaEventServer stopped")
+			s.logger.Infow("DotaStateServer stopped")
 		}
 	}()
 
@@ -67,7 +69,7 @@ func (s *DotaEventServer) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *DotaEventServer) Stop(ctx context.Context) error {
+func (s *DotaStateServer) Stop(ctx context.Context) error {
 	if !s.running.CompareAndSwap(true, false) {
 		return nil
 	}
@@ -80,9 +82,9 @@ func (s *DotaEventServer) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (s *DotaEventServer) Addr() string { return s.cfg.BindAddr }
+func (s *DotaStateServer) Addr() string { return s.cfg.BindAddr }
 
-func (s *DotaEventServer) handleEvent(w http.ResponseWriter, r *http.Request) {
+func (s *DotaStateServer) handleEvent(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "method not allowed; use POST", http.StatusMethodNotAllowed)
@@ -96,16 +98,10 @@ func (s *DotaEventServer) handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Log raw JSON
-	ts := time.Now().Format(time.RFC3339)
-	ua := r.Header.Get("User-Agent")
-	s.logger.Infow("GSI event received",
-		"ts", ts,
-		"remote", r.RemoteAddr,
-		"ua", ua,
-		"bytes", len(body),
-		"raw", string(body),
-	)
+	// Сохраняем сырое сообщение в State, если он подключен
+	if s.state != nil {
+		s.state.Add(string(body))
+	}
 
 	// По требованию: выводить в консоль весь JSON вместо отдельного поля map.
 	// Дополнительное действия не требуются, так как выше уже напечатано поле "raw" с полным телом.
