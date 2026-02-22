@@ -5,10 +5,13 @@ import (
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service/image"
 	"OpenAIClient/internal/service/speech"
+	"OpenAIClient/internal/service/tts"
+	"OpenAIClient/internal/service/tts/google"
 	"OpenAIClient/internal/service/tts/player"
 	"OpenAIClient/internal/service/tts/yandex"
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,7 +29,7 @@ type Scheduler struct {
 	cfg     *config.Config
 	req     *requester.Requester
 	speech  *speech.Speech
-	tts     *yandex.Client
+	tts     tts.Synthesizer
 	logger  *zap.SugaredLogger
 	cleaner *image.Cleaner
 
@@ -39,12 +42,31 @@ type Scheduler struct {
 }
 
 func New(cfg *config.Config, req *requester.Requester, sp *speech.Speech, logger *zap.SugaredLogger) *Scheduler {
-	// Конвертируем 0..100 (100 — без изменений) в dB диапазон [-20..0]
-	v := max(0, min(100, cfg.YandexTTS.Volume))
-	volDB := float64(v-100) / 5.0
-	p := player.NewWithVolume(volDB)
-	yc := yandex.New(p)
-	return &Scheduler{cfg: cfg, req: req, speech: sp, tts: yc, logger: logger, cleaner: image.NewCleaner(logger)}
+	// Инициализируем плеер: для Yandex — учитываем внешнюю громкость; для Google — отдаём на откуп VolumeGainDb
+	var p *player.Default
+	service := strings.ToLower(strings.TrimSpace(cfg.TTSService))
+	switch service {
+	case "yandex", "yc", "speechkit":
+		v := max(0, min(100, cfg.YandexTTS.Volume))
+		volDB := float64(v-100) / 5.0
+		p = player.NewWithVolume(volDB)
+	default: // google по умолчанию
+		p = player.New()
+		service = "google"
+	}
+
+	// Конкретный клиент
+	var synth tts.Synthesizer
+	switch service {
+	case "yandex":
+		synth = yandex.New(p)
+	default: // google
+		synth = google.New(p, logger)
+	}
+
+	s := &Scheduler{cfg: cfg, req: req, speech: sp, tts: synth, logger: logger, cleaner: image.NewCleaner(logger)}
+	s.logger.Infow("TTS selected", "service", service)
+	return s
 }
 
 // Run запускает бесконечный цикл до отмены контекста или достижения лимита ошибок.
@@ -177,7 +199,15 @@ func (s *Scheduler) runTick(parent context.Context) error {
 	// Проигрываем TTS, если есть ответ
 	if resp != "" {
 		s.logger.Infow(resp)
-		if ttsErr := s.tts.Synthesize(tickCtx, resp, s.cfg.YandexTTS); ttsErr != nil {
+		// Выбор конфига под текущий сервис
+		var ttsCfg any
+		switch strings.ToLower(strings.TrimSpace(s.cfg.TTSService)) {
+		case "yandex":
+			ttsCfg = s.cfg.YandexTTS
+		default: // google
+			ttsCfg = s.cfg.GoogleTTS
+		}
+		if ttsErr := s.tts.Synthesize(tickCtx, resp, ttsCfg); ttsErr != nil {
 			// Ошибка TTS трактуем как ошибку тика?
 			// По ТЗ: «TTS проигрывается при каждом тике, если был ответ» — ошибок TTS не указано отдельно,
 			// логируем и считаем ошибкой тика, чтобы не зациклиться в немом режиме.

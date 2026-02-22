@@ -2,6 +2,8 @@ package config
 
 import (
 	"flag"
+	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -23,6 +25,9 @@ type Config struct {
 	// Скриншоттер
 	ScreenshotIntervalSeconds int             `env:"SCREENSHOT_INTERVAL_SECONDS"` // Периодичность снятия скриншотов всего экрана, в секундах
 	YandexTTS                 YandexTTSConfig // Конфигурация TTS (Yandex SpeechKit)
+	// Общий переключатель сервиса TTS и конфиг Google TTS
+	TTSService string `env:"TTS_SERVICE"` // yandex|google, по умолчанию google
+	GoogleTTS  GoogleTTSConfig
 
 	// Настройки таймера (Scheduler)
 	TimerIntervalSeconds   int    `env:"TIMER_INTERVAL_SECONDS"`   // Базовый интервал между тиками
@@ -66,6 +71,22 @@ type YandexTTSConfig struct {
 	Volume  int    `env:"YC_TTS_VOLUME"`  // Громкость 0-100; 100 — не изменять громкость todo вероятно есть баг, что громкость уменьшается слишком быстро
 }
 
+// GoogleTTSConfig конфигурация для синтеза речи через Google Cloud Text-to-Speech.
+type GoogleTTSConfig struct {
+	// Путь к файлу ключа сервисного аккаунта. Фактически читается из ENV GOOGLE_APPLICATION_CREDENTIALS.
+	// Здесь храним дефолт (service-account.json в корне проекта) для удобства.
+	CredentialsPath string  `env:"GOOGLE_APPLICATION_CREDENTIALS"`
+	Language        string  `env:"GOOGLE_TTS_LANGUAGE"`
+	Voice           string  `env:"GOOGLE_TTS_VOICE"`
+	SpeakingRate    float64 `env:"GOOGLE_TTS_SPEAKING_RATE"`
+	Pitch           float64 `env:"GOOGLE_TTS_PITCH"`
+	VolumeGainDb    float64 `env:"GOOGLE_TTS_VOLUME_DB"`
+	// Эффект профиля устройства воспроизведения (оптимизация эквализации), напр. large-home-entertainment-class-device
+	EffectsProfileID string `env:"GOOGLE_TTS_EFFECTS_PROFILE_ID"`
+	// Тип входа: text|ssml. Пусто — auto (по наличию тега <speak> в тексте).
+	InputType string `env:"GOOGLE_TTS_INPUT_TYPE"`
+}
+
 // StateServerConfig конфигурация сервиса приёма игрового состояния.
 type StateServerConfig struct {
 	Enabled   bool   `env:"STATE_SERVER_ENABLED"`    // Главный флаг включения/выключения
@@ -105,6 +126,8 @@ func Defaults() *Config {
 		// Chat/Twitch
 		ChatHistoryHeader: "Сообщения из чата",
 		ChatMax:           30,
+		// По умолчанию используем Google TTS
+		TTSService: "google",
 		YandexTTS: YandexTTSConfig{
 			APIKey:  "", // ключ берём из .env/ENV, если пусто — будет ошибка при использовании
 			Voice:   "omazh",
@@ -117,6 +140,16 @@ func Defaults() *Config {
 			Enabled:  false,
 			BindAddr: "127.0.0.1:3000",
 			Path:     "/",
+		},
+		GoogleTTS: GoogleTTSConfig{
+			CredentialsPath:  "service-account.json",
+			Language:         "ru-RU",
+			Voice:            "ru-RU-Standard-A",
+			SpeakingRate:     1.0,
+			Pitch:            0.0,
+			VolumeGainDb:     0.0,
+			EffectsProfileID: "large-home-entertainment-class-device",
+			InputType:        "", // auto
 		},
 		// State
 		StateHeader: "Состояние игры",
@@ -161,6 +194,8 @@ func NewConfig() *Config {
 	// Chat/Twitch
 	flag.StringVar(&cfg.ChatHistoryHeader, "chat-history-header", cfg.ChatHistoryHeader, "заголовок блока с сообщениями чата")
 	flag.IntVar(&cfg.ChatMax, "chat-max", cfg.ChatMax, "максимум хранимых сообщений чата")
+	// Общие/переключатель TTS
+	flag.StringVar(&cfg.TTSService, "tts-service", cfg.TTSService, "выбор сервиса TTS: yandex|google")
 	flag.StringVar(&cfg.TwitchUsername, "twitch-username", cfg.TwitchUsername, "логин Twitch для подключения к чату")
 	flag.StringVar(&cfg.TwitchOAuthToken, "twitch-oauth-token", cfg.TwitchOAuthToken, "OAuth токен Twitch (может быть без префикса oauth:)")
 	flag.StringVar(&cfg.TwitchChannel, "twitch-channel", cfg.TwitchChannel, "канал Twitch (без #)")
@@ -171,6 +206,15 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.YandexTTS.Speed, "yc-tts-speed", cfg.YandexTTS.Speed, "скорость речи (например, 1.0 по умолчанию; 1.3 = на 30% быстрее)")
 	flag.StringVar(&cfg.YandexTTS.Emotion, "yc-tts-emotion", cfg.YandexTTS.Emotion, "эмоциональная окраска (neutral|good|evil). По умолчанию evil")
 	flag.IntVar(&cfg.YandexTTS.Volume, "yc-tts-volume", cfg.YandexTTS.Volume, "громкость 0-100 (100 — без изменений)")
+	// Параметры Google TTS
+	flag.StringVar(&cfg.GoogleTTS.CredentialsPath, "google-tts-credentials", cfg.GoogleTTS.CredentialsPath, "путь к service-account.json (также читается из ENV GOOGLE_APPLICATION_CREDENTIALS)")
+	flag.StringVar(&cfg.GoogleTTS.Language, "google-tts-language", cfg.GoogleTTS.Language, "язык синтеза, напр. ru-RU")
+	flag.StringVar(&cfg.GoogleTTS.Voice, "google-tts-voice", cfg.GoogleTTS.Voice, "имя голоса, напр. ru-RU-Standard-A или ru-RU-Wavenet-A")
+	flag.Float64Var(&cfg.GoogleTTS.SpeakingRate, "google-tts-speaking-rate", cfg.GoogleTTS.SpeakingRate, "скорость речи (1.0 по умолчанию)")
+	flag.Float64Var(&cfg.GoogleTTS.Pitch, "google-tts-pitch", cfg.GoogleTTS.Pitch, "тон (полутоны), может быть отрицательным")
+	flag.Float64Var(&cfg.GoogleTTS.VolumeGainDb, "google-tts-volume-db", cfg.GoogleTTS.VolumeGainDb, "усиление громкости (дБ), допустимо от -96.0 до +16.0")
+	flag.StringVar(&cfg.GoogleTTS.EffectsProfileID, "google-tts-effects-profile-id", cfg.GoogleTTS.EffectsProfileID, "EffectsProfileId, напр. large-home-entertainment-class-device")
+	flag.StringVar(&cfg.GoogleTTS.InputType, "google-tts-input-type", cfg.GoogleTTS.InputType, "тип входа: text|ssml; пусто = авто по наличию <speak>")
 	// STT/Speech
 	flag.DurationVar(&cfg.STTHandyWindow, "stt-handy-window", cfg.STTHandyWindow, "окно времени (Handy) для совпадения буфера и хоткея, напр. 1s")
 	flag.DurationVar(&cfg.STTHotkeyDelay, "stt-hotkey-delay", cfg.STTHotkeyDelay, "задержка реакции на Ctrl+Enter перед фиксацией текста, напр. 100ms")
@@ -192,6 +236,25 @@ func NewConfig() *Config {
 	// Разбор списков по общему правилу (trim + убрать пустые), дефолты различаются
 	cfg.CharacterList = parseListFlag(characterListFlag, []string{""})
 	cfg.SpeechPrompt = parseListFlag(speechPromptFlag, []string{"доложи статус"})
+
+	// Валидация и подготовка окружения для Google TTS.
+	// Если выбран сервис google, убеждаемся, что задан путь к cred-файлу
+	// и он существует. Если ENV пуст, но в конфиге указан путь — устанавливаем ENV.
+	if strings.EqualFold(cfg.TTSService, "google") {
+		cred := strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
+		if cred == "" {
+			if cp := strings.TrimSpace(cfg.GoogleTTS.CredentialsPath); cp != "" {
+				_ = os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", cp)
+				cred = cp
+			}
+		}
+		if cred == "" {
+			panic(fmt.Errorf("google tts: переменная окружения GOOGLE_APPLICATION_CREDENTIALS не задана; укажите ENV или флаг -google-tts-credentials"))
+		}
+		if _, err := os.Stat(cred); err != nil {
+			panic(fmt.Errorf("google tts: файл ключа не найден: %s", cred))
+		}
+	}
 
 	return cfg
 }
