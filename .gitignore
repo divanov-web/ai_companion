@@ -21,6 +21,7 @@ build/
 out/
 tmp/
 temp/
+content/
 
 # Профили/pprof
 *.pprof
@@ -52,6 +53,7 @@ logs/
 !.env.example
 .envrc
 .direnv/
+service-account.json
 
 # Локальные данные/артефакты разработки (если появятся)
 data/
