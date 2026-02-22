@@ -26,7 +26,7 @@ func New(p player.Player, logger *zap.SugaredLogger) *Client {
 }
 
 // Synthesize выполняет запрос к Google TTS и воспроизводит аудио. cfg должен быть config.GoogleTTSConfig.
-func (c *Client) Synthesize(ctx context.Context, text string, cfg any) error {
+func (c *Client) Synthesize(ctx context.Context, text string, _ string, cfg any) error {
 	gc, ok := cfg.(config.GoogleTTSConfig)
 	if !ok {
 		return errors.New("google tts: unexpected config type")

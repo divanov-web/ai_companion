@@ -206,15 +206,17 @@ func (s *Scheduler) runTick(parent context.Context) error {
 		s.logger.Infow(resp)
 		// Выбор конфига под текущий сервис
 		var ttsCfg any
+		prompt := ""
 		switch strings.ToLower(strings.TrimSpace(s.cfg.TTSService)) {
 		case "yandex":
 			ttsCfg = s.cfg.YandexTTS
 		case "gemini", "google-gemini":
 			ttsCfg = s.cfg.GeminiTTS
+			prompt = s.cfg.GeminiTTS.Prompt
 		default: // google
 			ttsCfg = s.cfg.GoogleTTS
 		}
-		if ttsErr := s.tts.Synthesize(tickCtx, resp, ttsCfg); ttsErr != nil {
+		if ttsErr := s.tts.Synthesize(tickCtx, resp, prompt, ttsCfg); ttsErr != nil {
 			// Ошибка TTS трактуем как ошибку тика?
 			// По ТЗ: «TTS проигрывается при каждом тике, если был ответ» — ошибок TTS не указано отдельно,
 			// логируем и считаем ошибкой тика, чтобы не зациклиться в немом режиме.

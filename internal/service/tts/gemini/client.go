@@ -60,7 +60,7 @@ type jsonAudioResponse struct {
 }
 
 // Synthesize выполняет запрос к Gemini‑TTS и воспроизводит аудио. cfg должен быть config.GeminiTTSConfig.
-func (c *Client) Synthesize(ctx context.Context, text string, cfg any) error {
+func (c *Client) Synthesize(ctx context.Context, text string, prompt string, cfg any) error {
 	gc, ok := cfg.(config.GeminiTTSConfig)
 	if !ok {
 		return errors.New("gemini tts: unexpected config type")
@@ -76,13 +76,15 @@ func (c *Client) Synthesize(ctx context.Context, text string, cfg any) error {
 	switch inType {
 	case "ssml":
 		rp.Input.Ssml = text
-	case "text", "prompt":
-		// Эндпоинт v1beta1 text:synthesize не поддерживает input.prompt —
-		// маппим наш "prompt" в обычный text.
+	case "text", "prompt", "":
 		rp.Input.Text = text
 	default:
 		// Неизвестный тип — отправим как text, чтобы избежать 400 INVALID_ARGUMENT.
 		rp.Input.Text = text
+	}
+	// Промпт из конфигурации — используется только Gemini. Пустым не отправляем.
+	if p := strings.TrimSpace(prompt); p != "" {
+		rp.Input.Prompt = p
 	}
 	rp.Voice.ModelName = strings.TrimSpace(gc.ModelName)
 	rp.Voice.LanguageCode = strings.TrimSpace(gc.Language)

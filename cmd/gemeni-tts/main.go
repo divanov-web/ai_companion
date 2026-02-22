@@ -80,7 +80,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := client.Synthesize(ctx, text, cfg.GeminiTTS); err != nil {
+	if err := client.Synthesize(ctx, text, cfg.GeminiTTS.Prompt, cfg.GeminiTTS); err != nil {
 		logger.Errorw("Gemini TTS synthesize failed", "error", err)
 		os.Exit(1)
 	}

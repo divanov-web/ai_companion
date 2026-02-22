@@ -105,6 +105,8 @@ type GeminiTTSConfig struct {
 	InputType string `env:"GEMINI_TTS_INPUT_TYPE"`
 	// Необязательный кастомный эндпоинт. Если пуст — используется дефолт клиента
 	Endpoint string `env:"GEMINI_TTS_ENDPOINT"`
+	// Дополнительный системный промпт для синтеза (используется только Gemini)
+	Prompt string `env:"GEMINI_TTS_PROMPT"`
 }
 
 // StateServerConfig конфигурация сервиса приёма игрового состояния.
@@ -133,7 +135,7 @@ func Defaults() *Config {
 		ScreenshotEnabled:         true,
 		// Таймер по умолчанию
 		RotateConversationEach: 3,
-		TimerIntervalSeconds:   10,
+		TimerIntervalSeconds:   5, //Задержка перед началом тика
 		TickTimeoutSeconds:     60,
 		OverlapPolicy:          "skip", //`skip`|`preempt`
 		MaxConsecutiveErrors:   3,
@@ -175,7 +177,8 @@ func Defaults() *Config {
 			ModelName:        "gemini-2.5-pro-tts",
 			Language:         "ru-RU",
 			VoiceName:        "Achernar",
-			SpeakingRate:     1.0,
+			Prompt:           "Ты кавайная анимешница",
+			SpeakingRate:     1.1,
 			Pitch:            0.0,
 			VolumeGainDb:     0.0,
 			EffectsProfileID: "",

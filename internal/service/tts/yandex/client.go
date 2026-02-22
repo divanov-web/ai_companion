@@ -26,7 +26,7 @@ func New(p player.Player) *Client {
 }
 
 // Synthesize выполняет запрос к Yandex TTS и воспроизводит аудио. cfg должен быть config.YandexTTSConfig.
-func (c *Client) Synthesize(ctx context.Context, text string, cfg any) error {
+func (c *Client) Synthesize(ctx context.Context, text string, _ string, cfg any) error {
 	yc, ok := cfg.(config.YandexTTSConfig)
 	if !ok {
 		return errors.New("yandex tts: unexpected config type")
