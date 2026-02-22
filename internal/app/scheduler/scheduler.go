@@ -6,6 +6,7 @@ import (
 	"OpenAIClient/internal/service/image"
 	"OpenAIClient/internal/service/speech"
 	"OpenAIClient/internal/service/tts"
+	"OpenAIClient/internal/service/tts/gemini"
 	"OpenAIClient/internal/service/tts/google"
 	"OpenAIClient/internal/service/tts/player"
 	"OpenAIClient/internal/service/tts/yandex"
@@ -50,9 +51,11 @@ func New(cfg *config.Config, req *requester.Requester, sp *speech.Speech, logger
 		v := max(0, min(100, cfg.YandexTTS.Volume))
 		volDB := float64(v-100) / 5.0
 		p = player.NewWithVolume(volDB)
-	default: // google по умолчанию
+	default: // google/gemini по умолчанию — громкость регулируется на стороне провайдера
 		p = player.New()
-		service = "google"
+		if service == "" {
+			service = "google"
+		}
 	}
 
 	// Конкретный клиент
@@ -60,6 +63,8 @@ func New(cfg *config.Config, req *requester.Requester, sp *speech.Speech, logger
 	switch service {
 	case "yandex":
 		synth = yandex.New(p)
+	case "gemini", "google-gemini":
+		synth = gemini.New(p, logger)
 	default: // google
 		synth = google.New(p, logger)
 	}
@@ -204,6 +209,8 @@ func (s *Scheduler) runTick(parent context.Context) error {
 		switch strings.ToLower(strings.TrimSpace(s.cfg.TTSService)) {
 		case "yandex":
 			ttsCfg = s.cfg.YandexTTS
+		case "gemini", "google-gemini":
+			ttsCfg = s.cfg.GeminiTTS
 		default: // google
 			ttsCfg = s.cfg.GoogleTTS
 		}
