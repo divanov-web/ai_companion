@@ -125,8 +125,8 @@ func Defaults() *Config {
 		ImagesToPick:              3,
 		ImagesTTLSeconds:          60,
 		HistoryHeader:             "история предыдущих ответов AI:",
+		MaxHistoryRecords:         3, // количество сообщений истории ответов AI
 		SpeechHeader:              "Моя реплика",
-		MaxHistoryRecords:         5,
 		ScreenshotIntervalSeconds: 2,
 		ScreenshotEnabled:         true,
 		// Таймер по умолчанию

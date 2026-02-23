@@ -79,7 +79,7 @@ func (a *Adapter) SendTextWithImage(ctx context.Context, systemPrompt string, as
 	)
 
 	params := responses.ResponseNewParams{
-		Model: openai.ChatModelGPT4o,
+		Model: openai.ChatModelGPT5_1,
 		Input: responses.ResponseNewParamsInputUnion{OfInputItemList: inputItems},
 	}
 
