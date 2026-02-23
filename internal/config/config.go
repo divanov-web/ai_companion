@@ -12,23 +12,24 @@ import (
 )
 
 type Config struct {
-	DebugMode             bool     `env:"DEBUG_MODE"`                      //Режим дебага
-	AssistantPrompt       string   `env:"ASSISTANT_PROMPT"`                //Текст промпта ассистента диалога
-	CharacterList         []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
-	SpeechPrompt          []string `env:"SPEECH_PROMPT" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
-	ImagesSourceDir       string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
-	ImagesToPick          int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
-	ImagesTTLSeconds      int      `env:"IMAGES_TTL_SECONDS"`              // Время, через которое картинки считаются старыми и их надо удалить, в секундах
-	HistoryHeader         string   `env:"HISTORY_HEADER"`                  // Заголовок блока с историей ответов ИИ
-	MaxHistoryRecords     int      `env:"MAX_HISTORY_RECORDS"`             // Максимум хранимых ответов ИИ в локальной истории
-	NotificationSoundPath string   `env:"NOTIFICATION_SOUND_PATH"`         // Путь к звуковому файлу уведомления
+	DebugMode           bool     `env:"DEBUG_MODE"`                      //Режим дебага
+	AssistantPrompt     string   `env:"ASSISTANT_PROMPT"`                //Текст промпта ассистента диалога
+	CharacterList       []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
+	SpeechPrompt        []string `env:"SPEECH_PROMPT" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
+	ImagesSourceDir     string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
+	ImagesToPick        int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
+	ImagesTTLSeconds    int      `env:"IMAGES_TTL_SECONDS"`              // Время, через которое картинки считаются старыми и их надо удалить, в секундах
+	HistoryHeader       string   `env:"HISTORY_HEADER"`                  // Заголовок блока с историей ответов ИИ
+	MaxHistoryRecords   int      `env:"MAX_HISTORY_RECORDS"`             // Максимум хранимых ответов ИИ в локальной истории
+	NotificationSendAI  string   `env:"NOTIFICATION_SEND_AI"`            // Путь к звуку уведомления ИИ (получено сообщение)
+	NotificationSendTTS string   `env:"NOTIFICATION_SEND_TTS"`           // Путь к звуку перед TTS (озвучка ответа)
 	// Скриншоттер
-	ScreenshotIntervalSeconds int             `env:"SCREENSHOT_INTERVAL_SECONDS"` // Периодичность снятия скриншотов всего экрана, в секундах
-	YandexTTS                 YandexTTSConfig // Конфигурация TTS (Yandex SpeechKit)
+	ScreenshotIntervalSeconds int `env:"SCREENSHOT_INTERVAL_SECONDS"` // Периодичность снятия скриншотов всего экрана, в секундах
 	// Общий переключатель сервиса TTS и конфиг Google/Gemini TTS
 	TTSService string `env:"TTS_SERVICE"` // yandex|google|gemini, по умолчанию google
 	GoogleTTS  GoogleTTSConfig
 	GeminiTTS  GeminiTTSConfig
+	YandexTTS  YandexTTSConfig
 
 	// Настройки таймера (Scheduler)
 	TimerIntervalSeconds   int    `env:"TIMER_INTERVAL_SECONDS"`   // Базовый интервал между тиками
@@ -130,7 +131,7 @@ func Defaults() *Config {
 		ImagesTTLSeconds:          60,
 		HistoryHeader:             "история предыдущих ответов AI:",
 		SpeechHeader:              "Моя реплика",
-		MaxHistoryRecords:         10,
+		MaxHistoryRecords:         5,
 		ScreenshotIntervalSeconds: 2,
 		ScreenshotEnabled:         true,
 		// Таймер по умолчанию
@@ -139,7 +140,8 @@ func Defaults() *Config {
 		TickTimeoutSeconds:     60,
 		OverlapPolicy:          "skip", //`skip`|`preempt`
 		MaxConsecutiveErrors:   3,
-		NotificationSoundPath:  "sound/notification2.mp3",
+		NotificationSendAI:     "sound/notification2.mp3",
+		NotificationSendTTS:    "sound/notification3.mp3",
 		// STT/Speech
 		STTHandyWindow:  time.Second,
 		STTHotkeyDelay:  100 * time.Millisecond,
@@ -176,9 +178,9 @@ func Defaults() *Config {
 		GeminiTTS: GeminiTTSConfig{
 			ModelName:        "gemini-2.5-pro-tts",
 			Language:         "ru-RU",
-			VoiceName:        "Achernar",
-			Prompt:           "Ты кавайная анимешница",
-			SpeakingRate:     1.1,
+			VoiceName:        "Achernar", //кавайно: Achernar, Kore, Leda
+			Prompt:           "Read kawaii",
+			SpeakingRate:     1.2,
 			Pitch:            0.0,
 			VolumeGainDb:     0.0,
 			EffectsProfileID: "",
@@ -214,8 +216,9 @@ func NewConfig() *Config {
 	flag.StringVar(&cfg.ImagesSourceDir, "images-source-dir", cfg.ImagesSourceDir, "путь к папке с исходными изображениями")
 	flag.IntVar(&cfg.ImagesToPick, "images-to-pick", cfg.ImagesToPick, "количество последних изображений для отправки")
 	flag.IntVar(&cfg.ImagesTTLSeconds, "images-ttl-seconds", cfg.ImagesTTLSeconds, "время, через которое картинки считаются старыми и их надо удалить, в секундах")
-	// Звук уведомления
-	flag.StringVar(&cfg.NotificationSoundPath, "notification-sound-path", cfg.NotificationSoundPath, "путь к звуковому файлу уведомления (mp3 или wav)")
+	// Звуки уведомлений
+	flag.StringVar(&cfg.NotificationSendAI, "notification-send-ai", cfg.NotificationSendAI, "звук уведомления получения ответа ИИ (mp3 или wav)")
+	flag.StringVar(&cfg.NotificationSendTTS, "notification-send-tts", cfg.NotificationSendTTS, "звук перед синтезом речи TTS (mp3 или wav)")
 	// Скриншоттер
 	flag.IntVar(&cfg.ScreenshotIntervalSeconds, "screenshot-interval-seconds", cfg.ScreenshotIntervalSeconds, "периодичность снятия скриншотов всего экрана, в секундах")
 	flag.BoolVar(&cfg.ScreenshotEnabled, "screenshot-enabled", cfg.ScreenshotEnabled, "включить фоновую съёмку скриншотов (Screenshotter)")
@@ -286,12 +289,6 @@ func NewConfig() *Config {
 	// и он существует. Если ENV пуст, но в конфиге указан путь — устанавливаем ENV.
 	if strings.EqualFold(cfg.TTSService, "google") {
 		cred := strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
-		if cred == "" {
-			if cp := strings.TrimSpace(cfg.GoogleTTS.CredentialsPath); cp != "" {
-				_ = os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", cp)
-				cred = cp
-			}
-		}
 		if cred == "" {
 			panic(fmt.Errorf("google tts: переменная окружения GOOGLE_APPLICATION_CREDENTIALS не задана; укажите ENV или флаг -google-tts-credentials"))
 		}

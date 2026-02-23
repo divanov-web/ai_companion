@@ -97,8 +97,8 @@ func main() {
 		}
 	}()
 
-	// Нотификатор звука — путь берём из конфига (env/флаг), конструктор сам найдёт дефолт, если пусто
-	notifier := notify.NewSoundNotifier(sugar, cfg.NotificationSoundPath)
+	// Нотификатор звука — пути берём из конфига (env/флаг), конструктор сам найдёт дефолты, если пусто
+	notifier := notify.NewSoundNotifier(sugar, cfg.NotificationSendAI, cfg.NotificationSendTTS)
 	// Запуск Twitch IRC слушателя фоновой горутиной (если конфигурация задана)
 	go func() {
 		_ = chatadapter.Run(ctx, sugar, chatadapter.Config{

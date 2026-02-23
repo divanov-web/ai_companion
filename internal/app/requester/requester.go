@@ -200,9 +200,9 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 
 	// Отправить сообщение (возможно без изображений)
 	r.logger.Infow("Отправка сообщения", "userSpeech", userSpeech, "characterPrompt", r.characterPrompt, "images", len(processed), "stateMsgs", len(stateMsgs))
-	// Проиграть звук уведомления перед отправкой
+	// Проиграть звук уведомления (получение/отправка к ИИ) перед отправкой
 	if r.notifier != nil {
-		if err := r.notifier.Play(ctx); err != nil {
+		if err := r.notifier.PlayAI(ctx); err != nil {
 			r.logger.Debugw("Ошибка проигрывания звука уведомления (пропускаем)", "error", err)
 		}
 	}

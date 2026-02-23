@@ -4,6 +4,7 @@ import (
 	"OpenAIClient/internal/app/requester"
 	"OpenAIClient/internal/config"
 	"OpenAIClient/internal/service/image"
+	"OpenAIClient/internal/service/notify"
 	"OpenAIClient/internal/service/speech"
 	"OpenAIClient/internal/service/tts"
 	"OpenAIClient/internal/service/tts/gemini"
@@ -27,12 +28,13 @@ const (
 )
 
 type Scheduler struct {
-	cfg     *config.Config
-	req     *requester.Requester
-	speech  *speech.Speech
-	tts     tts.Synthesizer
-	logger  *zap.SugaredLogger
-	cleaner *image.Cleaner
+	cfg      *config.Config
+	req      *requester.Requester
+	speech   *speech.Speech
+	tts      tts.Synthesizer
+	notifier *notify.SoundNotifier
+	logger   *zap.SugaredLogger
+	cleaner  *image.Cleaner
 
 	running    atomic.Bool
 	mu         sync.Mutex
@@ -69,7 +71,10 @@ func New(cfg *config.Config, req *requester.Requester, sp *speech.Speech, logger
 		synth = google.New(p, logger)
 	}
 
-	s := &Scheduler{cfg: cfg, req: req, speech: sp, tts: synth, logger: logger, cleaner: image.NewCleaner(logger)}
+	// Нотификатор звука (два типа): получение ответа ИИ и перед TTS
+	notifier := notify.NewSoundNotifier(logger, cfg.NotificationSendAI, cfg.NotificationSendTTS)
+
+	s := &Scheduler{cfg: cfg, req: req, speech: sp, tts: synth, notifier: notifier, logger: logger, cleaner: image.NewCleaner(logger)}
 	s.logger.Infow("TTS selected", "service", service)
 	return s
 }
@@ -204,6 +209,12 @@ func (s *Scheduler) runTick(parent context.Context) error {
 	// Проигрываем TTS, если есть ответ
 	if resp != "" {
 		s.logger.Infow(resp)
+		// Перед синтезом речи проигрываем уведомление TTS (не критично к ошибкам)
+		if s.notifier != nil {
+			if err := s.notifier.PlayTTS(tickCtx); err != nil {
+				s.logger.Warnw("TTS notification sound failed", "error", err)
+			}
+		}
 		// Выбор конфига под текущий сервис
 		var ttsCfg any
 		prompt := ""
