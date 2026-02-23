@@ -1,7 +1,6 @@
 package config
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -73,44 +72,38 @@ type YandexTTSConfig struct {
 	Volume  int    `env:"YC_TTS_VOLUME"`  // Громкость 0-100; 100 — не изменять громкость todo вероятно есть баг, что громкость уменьшается слишком быстро
 }
 
-// GoogleTTSConfig конфигурация для синтеза речи через Google Cloud Text-to-Speech.
+// GoogleTTSConfig — конфигурация для синтеза речи через Google Cloud Text-to-Speech.
 type GoogleTTSConfig struct {
-	// Путь к файлу ключа сервисного аккаунта. Фактически читается из ENV GOOGLE_APPLICATION_CREDENTIALS.
-	// Здесь храним дефолт (service-account.json в корне проекта) для удобства.
+	// Путь к файлу ключа сервисного аккаунта (ENV GOOGLE_APPLICATION_CREDENTIALS).
 	CredentialsPath string  `env:"GOOGLE_APPLICATION_CREDENTIALS"`
 	Language        string  `env:"GOOGLE_TTS_LANGUAGE"`
 	Voice           string  `env:"GOOGLE_TTS_VOICE"`
 	SpeakingRate    float64 `env:"GOOGLE_TTS_SPEAKING_RATE"`
 	Pitch           float64 `env:"GOOGLE_TTS_PITCH"`
 	VolumeGainDb    float64 `env:"GOOGLE_TTS_VOLUME_DB"`
-	// Эффект профиля устройства воспроизведения (оптимизация эквализации), напр. large-home-entertainment-class-device
+	// Эффект профиля устройства воспроизведения
 	EffectsProfileID string `env:"GOOGLE_TTS_EFFECTS_PROFILE_ID"`
-	// Тип входа: text|ssml. Пусто — auto (по наличию тега <speak> в тексте).
+	// Тип входа: text|ssml (auto при отсутствии явного выбора)
 	InputType string `env:"GOOGLE_TTS_INPUT_TYPE"`
 }
 
-// GeminiTTSConfig конфигурация для синтеза речи через Cloud Text-to-Speech: Gemini-TTS.
-// Авторизация: только через Application Default Credentials (service account JSON / metadata).
+// GeminiTTSConfig — конфигурация для синтеза речи через Cloud Text-to-Speech (Gemini-TTS).
 type GeminiTTSConfig struct {
-	// Модель голоса Gemini‑TTS, например: tts-1 или полное имя модели
-	ModelName string `env:"GEMINI_TTS_MODEL_NAME"`
-	// Язык и имя/вариант голоса (зависит от модели)
-	Language     string  `env:"GEMINI_TTS_LANGUAGE"`
-	VoiceName    string  `env:"GEMINI_TTS_VOICE_NAME"`
-	SpeakingRate float64 `env:"GEMINI_TTS_SPEAKING_RATE"`
-	Pitch        float64 `env:"GEMINI_TTS_PITCH"`
-	VolumeGainDb float64 `env:"GEMINI_TTS_VOLUME_DB"`
-	// Эффект профиля устройства (если поддерживается Gemini‑TTS)
-	EffectsProfileID string `env:"GEMINI_TTS_EFFECTS_PROFILE_ID"`
-	// Тип входа: text|ssml|prompt. По умолчанию используем prompt (input.prompt)
+	// Модель голоса Gemini‑TTS
+	ModelName        string  `env:"GEMINI_TTS_MODEL_NAME"`
+	Language         string  `env:"GEMINI_TTS_LANGUAGE"`
+	VoiceName        string  `env:"GEMINI_TTS_VOICE_NAME"`
+	SpeakingRate     float64 `env:"GEMINI_TTS_SPEAKING_RATE"`
+	Pitch            float64 `env:"GEMINI_TTS_PITCH"`
+	VolumeGainDb     float64 `env:"GEMINI_TTS_VOLUME_DB"`
+	EffectsProfileID string  `env:"GEMINI_TTS_EFFECTS_PROFILE_ID"`
+	// Тип входа: text|ssml|prompt
 	InputType string `env:"GEMINI_TTS_INPUT_TYPE"`
-	// Необязательный кастомный эндпоинт. Если пуст — используется дефолт клиента
-	Endpoint string `env:"GEMINI_TTS_ENDPOINT"`
-	// Дополнительный системный промпт для синтеза (используется только Gemini)
-	Prompt string `env:"GEMINI_TTS_PROMPT"`
+	Endpoint  string `env:"GEMINI_TTS_ENDPOINT"`
+	Prompt    string `env:"GEMINI_TTS_PROMPT"`
 }
 
-// StateServerConfig конфигурация сервиса приёма игрового состояния.
+// StateServerConfig — конфигурация сервиса приёма игрового состояния.
 type StateServerConfig struct {
 	Enabled   bool   `env:"STATE_SERVER_ENABLED"`    // Главный флаг включения/выключения
 	BindAddr  string `env:"STATE_SERVER_BIND_ADDR"`  // Адрес слушателя, напр. 127.0.0.1:3000
@@ -118,13 +111,13 @@ type StateServerConfig struct {
 	AuthToken string `env:"STATE_SERVER_AUTH_TOKEN"` // Токен авторизации (опционально)
 }
 
-// Defaults возвращает конфигурацию с предустановленными значениями по умолчанию.
-// Эти значения перекрываются .env, переменными окружения и флагами CLI.
+// Defaults возвращает конфигурацию со значениями по умолчанию.
+// Значения могут быть переопределены из .env и переменных окружения.
 func Defaults() *Config {
 	return &Config{
 		DebugMode:                 false,
 		AssistantPrompt:           "Ты помощник капитана и озвучиваешь то, что видишь на картинках",
-		CharacterList:             []string{""}, // по умолчанию один пустой характер
+		CharacterList:             []string{""},
 		SpeechPrompt:              []string{"доложи статус"},
 		ImagesSourceDir:           "images\\sharex",
 		ImagesToPick:              3,
@@ -153,12 +146,12 @@ func Defaults() *Config {
 		// По умолчанию используем Google TTS
 		TTSService: "gemini",
 		YandexTTS: YandexTTSConfig{
-			APIKey:  "", // ключ берём из .env/ENV, если пусто — будет ошибка при использовании
+			APIKey:  "",
 			Voice:   "omazh",
-			Format:  "mp3",  // поддерживаемые форматы: mp3|wav|oggopus (проигрывание mp3/wav)
-			Speed:   "1.3",  // ускорение речи ~30% относительно дефолта 1.0
-			Emotion: "evil", // эмоциональная окраска по умолчанию
-			Volume:  100,    // 0-100, 100 — громкость не меняем
+			Format:  "mp3",
+			Speed:   "1.3",
+			Emotion: "evil",
+			Volume:  100,
 		},
 		StateServer: StateServerConfig{
 			Enabled:  false,
@@ -173,12 +166,12 @@ func Defaults() *Config {
 			Pitch:            0.0,
 			VolumeGainDb:     0.0,
 			EffectsProfileID: "large-home-entertainment-class-device",
-			InputType:        "", // auto
+			InputType:        "",
 		},
 		GeminiTTS: GeminiTTSConfig{
 			ModelName:        "gemini-2.5-pro-tts",
 			Language:         "ru-RU",
-			VoiceName:        "Achernar", //кавайно: Achernar, Kore, Leda
+			VoiceName:        "Achernar", //кавайные: Achernar, Kore, Leda
 			Prompt:           "Read kawaii",
 			SpeakingRate:     1.2,
 			Pitch:            0.0,
@@ -187,7 +180,6 @@ func Defaults() *Config {
 			InputType:        "prompt",
 			Endpoint:         "https://texttospeech.googleapis.com/v1beta1/text:synthesize",
 		},
-		// State
 		StateHeader: "Состояние игры",
 		StateMax:    3,
 	}
@@ -197,100 +189,14 @@ func Defaults() *Config {
 func NewConfig() *Config {
 	_ = godotenv.Load()
 
-	// Стартуем с дефолтов, затем перекрываем .env/окружением и флагами
 	cfg := Defaults()
 	_ = env.Parse(cfg)
 
-	flag.BoolVar(&cfg.DebugMode, "debug-mode", cfg.DebugMode, "включить режим дебага для отображения до инфы")
-	flag.StringVar(&cfg.AssistantPrompt, "assistant-prompt", cfg.AssistantPrompt, "текст промпта ассистента диалога")
-	flag.StringVar(&cfg.HistoryHeader, "history-header", cfg.HistoryHeader, "заголовок блока с историей предыдущих ответов AI")
-	flag.IntVar(&cfg.MaxHistoryRecords, "max-history-records", cfg.MaxHistoryRecords, "максимум хранимых ответов ИИ в локальной истории")
-	// Принимаем список характеров одной строкой, разделённой ';'
-	var characterListFlag string
-	characterListFlag = strings.Join(cfg.CharacterList, ";")
-	flag.StringVar(&characterListFlag, "character-list", characterListFlag, "список характеров персонажа, разделённых ';'")
-	// Принимаем список реплик-подсказок одной строкой, разделённой ';'
-	var speechPromptFlag string
-	speechPromptFlag = strings.Join(cfg.SpeechPrompt, ";")
-	flag.StringVar(&speechPromptFlag, "speech-prompt", speechPromptFlag, "реплики-подсказки, разделённые ';' (одна будет выбрана случайно)")
-	flag.StringVar(&cfg.ImagesSourceDir, "images-source-dir", cfg.ImagesSourceDir, "путь к папке с исходными изображениями")
-	flag.IntVar(&cfg.ImagesToPick, "images-to-pick", cfg.ImagesToPick, "количество последних изображений для отправки")
-	flag.IntVar(&cfg.ImagesTTLSeconds, "images-ttl-seconds", cfg.ImagesTTLSeconds, "время, через которое картинки считаются старыми и их надо удалить, в секундах")
-	// Звуки уведомлений
-	flag.StringVar(&cfg.NotificationSendAI, "notification-send-ai", cfg.NotificationSendAI, "звук уведомления получения ответа ИИ (mp3 или wav)")
-	flag.StringVar(&cfg.NotificationSendTTS, "notification-send-tts", cfg.NotificationSendTTS, "звук перед синтезом речи TTS (mp3 или wav)")
-	// Скриншоттер
-	flag.IntVar(&cfg.ScreenshotIntervalSeconds, "screenshot-interval-seconds", cfg.ScreenshotIntervalSeconds, "периодичность снятия скриншотов всего экрана, в секундах")
-	flag.BoolVar(&cfg.ScreenshotEnabled, "screenshot-enabled", cfg.ScreenshotEnabled, "включить фоновую съёмку скриншотов (Screenshotter)")
-	// Таймер
-	flag.IntVar(&cfg.TimerIntervalSeconds, "timer-interval-seconds", cfg.TimerIntervalSeconds, "базовый интервал таймера в секундах")
-	flag.IntVar(&cfg.TickTimeoutSeconds, "tick-timeout-seconds", cfg.TickTimeoutSeconds, "таймаут одного тика в секундах")
-	flag.StringVar(&cfg.OverlapPolicy, "overlap-policy", cfg.OverlapPolicy, "политика наложения тиков: skip|preempt")
-	flag.IntVar(&cfg.MaxConsecutiveErrors, "max-consecutive-errors", cfg.MaxConsecutiveErrors, "количество последовательных ошибок до остановки приложения")
-	flag.IntVar(&cfg.RotateConversationEach, "rotate-conversation-each", cfg.RotateConversationEach, "каждые N успешных запросов начинать новый диалог")
-	// Chat/Twitch
-	flag.StringVar(&cfg.ChatHistoryHeader, "chat-history-header", cfg.ChatHistoryHeader, "заголовок блока с сообщениями чата")
-	flag.IntVar(&cfg.ChatMax, "chat-max", cfg.ChatMax, "максимум хранимых сообщений чата")
-	// Общие/переключатель TTS
-	flag.StringVar(&cfg.TTSService, "tts-service", cfg.TTSService, "выбор сервиса TTS: yandex|google|gemini")
-	flag.StringVar(&cfg.TwitchUsername, "twitch-username", cfg.TwitchUsername, "логин Twitch для подключения к чату")
-	flag.StringVar(&cfg.TwitchOAuthToken, "twitch-oauth-token", cfg.TwitchOAuthToken, "OAuth токен Twitch (может быть без префикса oauth:)")
-	flag.StringVar(&cfg.TwitchChannel, "twitch-channel", cfg.TwitchChannel, "канал Twitch (без #)")
-	// Параметры Yandex TTS
-	flag.StringVar(&cfg.YandexTTS.APIKey, "yc-tts-api-key", cfg.YandexTTS.APIKey, "API ключ Yandex SpeechKit TTS (перекрывает ENV)")
-	flag.StringVar(&cfg.YandexTTS.Voice, "yc-tts-voice", cfg.YandexTTS.Voice, "голос для синтеза (напр. filipp, jane, oksana, zahar, ermil)")
-	flag.StringVar(&cfg.YandexTTS.Format, "yc-tts-format", cfg.YandexTTS.Format, "формат аудио (mp3|wav|oggopus), проигрывание поддерживается для mp3 и wav")
-	flag.StringVar(&cfg.YandexTTS.Speed, "yc-tts-speed", cfg.YandexTTS.Speed, "скорость речи (например, 1.0 по умолчанию; 1.3 = на 30% быстрее)")
-	flag.StringVar(&cfg.YandexTTS.Emotion, "yc-tts-emotion", cfg.YandexTTS.Emotion, "эмоциональная окраска (neutral|good|evil). По умолчанию evil")
-	flag.IntVar(&cfg.YandexTTS.Volume, "yc-tts-volume", cfg.YandexTTS.Volume, "громкость 0-100 (100 — без изменений)")
-	// Параметры Google TTS
-	flag.StringVar(&cfg.GoogleTTS.CredentialsPath, "google-tts-credentials", cfg.GoogleTTS.CredentialsPath, "путь к service-account.json (также читается из ENV GOOGLE_APPLICATION_CREDENTIALS)")
-	flag.StringVar(&cfg.GoogleTTS.Language, "google-tts-language", cfg.GoogleTTS.Language, "язык синтеза, напр. ru-RU")
-	flag.StringVar(&cfg.GoogleTTS.Voice, "google-tts-voice", cfg.GoogleTTS.Voice, "имя голоса, напр. ru-RU-Standard-A или ru-RU-Wavenet-A")
-	flag.Float64Var(&cfg.GoogleTTS.SpeakingRate, "google-tts-speaking-rate", cfg.GoogleTTS.SpeakingRate, "скорость речи (1.0 по умолчанию)")
-	flag.Float64Var(&cfg.GoogleTTS.Pitch, "google-tts-pitch", cfg.GoogleTTS.Pitch, "тон (полутоны), может быть отрицательным")
-	flag.Float64Var(&cfg.GoogleTTS.VolumeGainDb, "google-tts-volume-db", cfg.GoogleTTS.VolumeGainDb, "усиление громкости (дБ), допустимо от -96.0 до +16.0")
-	flag.StringVar(&cfg.GoogleTTS.EffectsProfileID, "google-tts-effects-profile-id", cfg.GoogleTTS.EffectsProfileID, "EffectsProfileId, напр. large-home-entertainment-class-device")
-	flag.StringVar(&cfg.GoogleTTS.InputType, "google-tts-input-type", cfg.GoogleTTS.InputType, "тип входа: text|ssml; пусто = авто по наличию <speak>")
-	// Параметры Gemini TTS (авторизация только через ADC)
-	flag.StringVar(&cfg.GeminiTTS.ModelName, "gemini-tts-model-name", cfg.GeminiTTS.ModelName, "имя модели Gemini‑TTS (напр. tts-1)")
-	flag.StringVar(&cfg.GeminiTTS.Language, "gemini-tts-language", cfg.GeminiTTS.Language, "язык синтеза, напр. ru-RU")
-	flag.StringVar(&cfg.GeminiTTS.VoiceName, "gemini-tts-voice-name", cfg.GeminiTTS.VoiceName, "имя/вариант голоса (если поддерживается моделью)")
-	flag.Float64Var(&cfg.GeminiTTS.SpeakingRate, "gemini-tts-speaking-rate", cfg.GeminiTTS.SpeakingRate, "скорость речи (1.0 по умолчанию)")
-	flag.Float64Var(&cfg.GeminiTTS.Pitch, "gemini-tts-pitch", cfg.GeminiTTS.Pitch, "тон (полутоны), может быть отрицательным")
-	flag.Float64Var(&cfg.GeminiTTS.VolumeGainDb, "gemini-tts-volume-db", cfg.GeminiTTS.VolumeGainDb, "усиление громкости (дБ), допустимо от -96.0 до +16.0")
-	flag.StringVar(&cfg.GeminiTTS.EffectsProfileID, "gemini-tts-effects-profile-id", cfg.GeminiTTS.EffectsProfileID, "EffectsProfileId (если поддерживается Gemini‑TTS)")
-	flag.StringVar(&cfg.GeminiTTS.InputType, "gemini-tts-input-type", cfg.GeminiTTS.InputType, "тип входа: text|ssml|prompt; по умолчанию prompt")
-	flag.StringVar(&cfg.GeminiTTS.Endpoint, "gemini-tts-endpoint", cfg.GeminiTTS.Endpoint, "кастомный эндпоинт Gemini‑TTS; пусто = дефолт клиента")
-	// STT/Speech
-	flag.DurationVar(&cfg.STTHandyWindow, "stt-handy-window", cfg.STTHandyWindow, "окно времени (Handy) для совпадения буфера и хоткея, напр. 1s")
-	flag.DurationVar(&cfg.STTHotkeyDelay, "stt-hotkey-delay", cfg.STTHotkeyDelay, "задержка реакции на Ctrl+Enter перед фиксацией текста, напр. 100ms")
-	flag.StringVar(&cfg.SpeechHeader, "speech-header", cfg.SpeechHeader, "заголовок блока сообщений из речи (Speech)")
-	flag.IntVar(&cfg.SpeechMax, "speech-max", cfg.SpeechMax, "максимум хранимых сообщений в Speech")
-	flag.BoolVar(&cfg.EnableEarlyTick, "enable-early-tick", cfg.EnableEarlyTick, "запускать ранний тик при наличии сообщений из Speech")
-
-	// StateServer
-	flag.BoolVar(&cfg.StateServer.Enabled, "state-server-enabled", cfg.StateServer.Enabled, "включить приёмник игрового состояния (StateServer)")
-	flag.StringVar(&cfg.StateServer.BindAddr, "state-server-bind-addr", cfg.StateServer.BindAddr, "адрес для прослушивания StateServer (напр. 127.0.0.1:3000)")
-	flag.StringVar(&cfg.StateServer.Path, "state-server-path", cfg.StateServer.Path, "HTTP путь StateServer (напр. /)")
-	flag.StringVar(&cfg.StateServer.AuthToken, "state-server-auth-token", cfg.StateServer.AuthToken, "токен авторизации StateServer (опционально)")
-
-	// State buffer
-	flag.StringVar(&cfg.StateHeader, "state-header", cfg.StateHeader, "заголовок блока сообщений из игрового состояния (State)")
-	flag.IntVar(&cfg.StateMax, "state-max", cfg.StateMax, "максимум хранимых сообщений в State")
-	flag.Parse()
-
-	// Разбор списков по общему правилу (trim + убрать пустые), дефолты различаются
-	cfg.CharacterList = parseListFlag(characterListFlag, []string{""})
-	cfg.SpeechPrompt = parseListFlag(speechPromptFlag, []string{"доложи статус"})
-
-	// Валидация и подготовка окружения для Google TTS.
-	// Если выбран сервис google, убеждаемся, что задан путь к cred-файлу
-	// и он существует. Если ENV пуст, но в конфиге указан путь — устанавливаем ENV.
+	// Валидация для Google TTS: проверка наличия и доступности файла ключа
 	if strings.EqualFold(cfg.TTSService, "google") {
 		cred := strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
 		if cred == "" {
-			panic(fmt.Errorf("google tts: переменная окружения GOOGLE_APPLICATION_CREDENTIALS не задана; укажите ENV или флаг -google-tts-credentials"))
+			panic(fmt.Errorf("google tts: переменная окружения GOOGLE_APPLICATION_CREDENTIALS не задана; укажите её или задайте путь к ключу сервисного аккаунта"))
 		}
 		if _, err := os.Stat(cred); err != nil {
 			panic(fmt.Errorf("google tts: файл ключа не найден: %s", cred))
@@ -298,24 +204,4 @@ func NewConfig() *Config {
 	}
 
 	return cfg
-}
-
-// parseListFlag разбирает значение флага со списком, разделённым ';'
-func parseListFlag(v string, def []string) []string {
-	// Пустая строка → дефолт
-	if v == "" {
-		return def
-	}
-	parts := strings.Split(v, ";")
-	cleaned := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			cleaned = append(cleaned, p)
-		}
-	}
-	if len(cleaned) == 0 {
-		return def
-	}
-	return cleaned
 }
