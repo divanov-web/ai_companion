@@ -13,6 +13,7 @@ import (
 type Config struct {
 	DebugMode           bool     `env:"DEBUG_MODE"`                      //Режим дебага
 	AssistantPrompt     string   `env:"ASSISTANT_PROMPT"`                //Текст промпта ассистента диалога
+	AssistantSentences  int      `env:"ASSISTANT_SENTENCES"`             // Количество предложений в ответе ассистента
 	CharacterList       []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
 	SpeechPrompt        []string `env:"SPEECH_PROMPT" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
 	ImagesSourceDir     string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
@@ -117,6 +118,7 @@ func Defaults() *Config {
 	return &Config{
 		DebugMode:                 false,
 		AssistantPrompt:           "Ты помощник капитана и озвучиваешь то, что видишь на картинках",
+		AssistantSentences:        3,
 		CharacterList:             []string{""},
 		SpeechPrompt:              []string{"доложи статус"},
 		ImagesSourceDir:           "images\\sharex",

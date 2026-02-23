@@ -13,6 +13,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -180,6 +181,13 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 
 	// Подготовить assistantPrompt: возможно добавить блок State в самый низ
 	assistantPrompt := r.cfg.AssistantPrompt
+	//Количество предложений в ответе AI
+	n := r.cfg.AssistantSentences
+	if len(chatMsgs) > 0 {
+		n++
+	}
+	assistantPrompt = fmt.Sprintf(assistantPrompt, n)
+
 	if len(stateMsgs) > 0 {
 		header := strings.TrimSpace(r.cfg.StateHeader)
 		if header == "" {
@@ -198,7 +206,7 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 		assistantPrompt = assistantPrompt + sb.String()
 	}
 
-	// Отправить сообщение (возможно без изображений)
+	// Отправить сообщение (можно без изображений)
 	r.logger.Infow("Отправка сообщения", "userSpeech", userSpeech, "characterPrompt", r.characterPrompt, "images", len(processed), "stateMsgs", len(stateMsgs))
 	// Проиграть звук уведомления (получение/отправка к ИИ) перед отправкой
 	if r.notifier != nil {
