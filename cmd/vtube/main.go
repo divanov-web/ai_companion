@@ -63,8 +63,17 @@ func main() {
 		dev   = flag.String("dev", "OpenAIClient", "Имя разработчика (pluginDeveloper)")
 		id    = flag.String("id", fmt.Sprintf("req-%d", time.Now().UnixNano()), "Произвольный requestID")
 		apiV  = flag.String("api-ver", "1.0", "Версия VTS Public API")
+		mode  = flag.String("mode", "emotions", "Режим работы: auth (показать хоткеи и вызвать тестовую эмоцию) | emotions (тест эмоций по тегам из конфига)")
 	)
 	flag.Parse()
+
+	// Режим теста эмоций через наш внутренний клиент (на основе тегов из конфига)
+	if strings.EqualFold(strings.TrimSpace(*mode), "emotions") {
+		if err := runEmotionsTest(context.Background()); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
 	cfg := config.NewConfig()
 	if cfg.VTubeAPIKey == "" {

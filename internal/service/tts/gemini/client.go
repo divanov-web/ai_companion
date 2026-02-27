@@ -2,7 +2,6 @@ package gemini
 
 import (
 	"OpenAIClient/internal/config"
-	"OpenAIClient/internal/service/tts/player"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -21,15 +20,14 @@ import (
 // По умолчанию используем Cloud TTS v1beta1 text:synthesize, совместимый с Generative AI TTS.
 const defaultEndpoint = "https://texttospeech.googleapis.com/v1beta1/text:synthesize"
 
-// Client реализует синтез речи через Cloud Text-to-Speech: Gemini‑TTS и воспроизводит результат.
+// Client реализует синтез речи через Cloud Text-to-Speech: Gemini‑TTS.
 type Client struct {
 	http   *http.Client
-	player player.Player
 	logger *zap.SugaredLogger
 }
 
-func New(p player.Player, logger *zap.SugaredLogger) *Client {
-	return &Client{http: http.DefaultClient, player: p, logger: logger}
+func New(logger *zap.SugaredLogger) *Client {
+	return &Client{http: http.DefaultClient, logger: logger}
 }
 
 // requestPayload — максимально нейтральная структура, покрывающая input.prompt и voice.model_name.
@@ -59,15 +57,15 @@ type jsonAudioResponse struct {
 	AudioContent string `json:"audioContent"`
 }
 
-// Synthesize выполняет запрос к Gemini‑TTS и воспроизводит аудио. cfg должен быть config.GeminiTTSConfig.
-func (c *Client) Synthesize(ctx context.Context, text string, prompt string, cfg any) error {
+// Synthesize выполняет запрос к Gemini‑TTS и возвращает аудио. cfg должен быть config.GeminiTTSConfig.
+func (c *Client) Synthesize(ctx context.Context, text string, prompt string, cfg any) (string, io.ReadCloser, error) {
 	gc, ok := cfg.(config.GeminiTTSConfig)
 	if !ok {
-		return errors.New("gemini tts: unexpected config type")
+		return "", nil, errors.New("gemini tts: unexpected config type")
 	}
 	// Валидация входа: Cloud TTS ожидает text или ssml. Пустой ввод приведёт к 400.
 	if strings.TrimSpace(text) == "" {
-		return errors.New("gemini tts: empty input text — provide -text or non-empty SSML")
+		return "", nil, errors.New("gemini tts: empty input text — provide -text or non-empty SSML")
 	}
 
 	// Формирование запроса
@@ -100,7 +98,7 @@ func (c *Client) Synthesize(ctx context.Context, text string, prompt string, cfg
 
 	body, err := json.Marshal(&rp)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 
 	endpoint := strings.TrimSpace(gc.Endpoint)
@@ -111,14 +109,14 @@ func (c *Client) Synthesize(ctx context.Context, text string, prompt string, cfg
 	// Создаём OAuth2 HTTP‑клиент только через ADC/metadata. API Key не используется.
 	httpClient, err := google.DefaultClient(ctx, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
-		return errors.New("gemini tts: ADC credentials not found. Set GOOGLE_APPLICATION_CREDENTIALS to a service account JSON or run in GCE/GKE with default credentials")
+		return "", nil, errors.New("gemini tts: ADC credentials not found. Set GOOGLE_APPLICATION_CREDENTIALS to a service account JSON or run in GCE/GKE with default credentials")
 	}
 
 	url := endpoint
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
@@ -126,7 +124,7 @@ func (c *Client) Synthesize(ctx context.Context, text string, prompt string, cfg
 	started := time.Now()
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	defer resp.Body.Close()
 
@@ -139,23 +137,23 @@ func (c *Client) Synthesize(ctx context.Context, text string, prompt string, cfg
 		if len(b) == 0 {
 			b = []byte(resp.Status)
 		}
-		return fmt.Errorf("gemini tts error: status=%d, body=%s", resp.StatusCode, strings.TrimSpace(string(b)))
+		return "", nil, fmt.Errorf("gemini tts error: status=%d, body=%s", resp.StatusCode, strings.TrimSpace(string(b)))
 	}
 
 	// JSON с base64 полем audioContent
 	var jr jsonAudioResponse
 	dec := json.NewDecoder(io.LimitReader(resp.Body, 5<<20)) // до 5 МБ JSON
 	if err := dec.Decode(&jr); err != nil {
-		return fmt.Errorf("gemini tts: decode json response: %w", err)
+		return "", nil, fmt.Errorf("gemini tts: decode json response: %w", err)
 	}
 	if strings.TrimSpace(jr.AudioContent) == "" {
-		return errors.New("gemini tts: empty audioContent in response")
+		return "", nil, errors.New("gemini tts: empty audioContent in response")
 	}
 	data, err := base64.StdEncoding.DecodeString(jr.AudioContent)
 	if err != nil {
-		return fmt.Errorf("gemini tts: base64 decode: %w", err)
+		return "", nil, fmt.Errorf("gemini tts: base64 decode: %w", err)
 	}
 	rc := io.NopCloser(bytes.NewReader(data))
-	// audioEncoding=MP3 — играем как MP3
-	return c.player.Play("mp3", rc)
+	// audioEncoding=MP3 — вернём как MP3
+	return "mp3", rc, nil
 }

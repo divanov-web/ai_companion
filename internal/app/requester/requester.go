@@ -36,6 +36,7 @@ type Requester struct {
 	rnd             *rand.Rand
 	requestCount    int // Количество успешных отправок в текущем диалоге
 	characterPrompt string
+	characterTags   []string
 }
 
 func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, stbuf *st.State, ch *chat.Chat, notifier *notify.SoundNotifier, logger *zap.SugaredLogger) *Requester {
@@ -52,13 +53,21 @@ func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, 
 	}
 	n := len(cfg.CharacterList)
 	if n > 0 {
-		r.characterPrompt = cfg.CharacterList[r.rnd.Intn(n)].Text
+		item := cfg.CharacterList[r.rnd.Intn(n)]
+		r.characterPrompt = item.Text
+		r.characterTags = append([]string(nil), item.Tags...)
 	}
 	return r
 }
 
+// Response — результат отправки сообщения: текст для TTS и выбранные теги характера.
+type Response struct {
+	Text string
+	Tags []string
+}
+
 // SendMessage выполняет сценарий «Послать запрос» один раз.
-func (r *Requester) SendMessage(ctx context.Context) (string, error) {
+func (r *Requester) SendMessage(ctx context.Context) (Response, error) {
 	var userPrompt string
 
 	var b strings.Builder
@@ -117,12 +126,12 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 	// Найти последние N картинок
 	paths, err := r.pickLastImages(r.cfg.ImagesSourceDir, r.cfg.ImagesToPick)
 	if err != nil {
-		return "", err
+		return Response{}, err
 	}
 	// Новая логика: если нет И изображений, И сообщений из State — не отправляем
 	if len(paths) == 0 && len(stateMsgs) == 0 {
 		r.logger.Infow("Нет данных для отправки: нет изображений и нет сообщений из State", "dir", r.cfg.ImagesSourceDir)
-		return "", nil
+		return Response{}, nil
 	}
 
 	// Подготовить метаданные изображений для отправки (без доп. обработки)
@@ -139,9 +148,12 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 	if r.cfg.RotateConversationEach > 0 && r.requestCount >= r.cfg.RotateConversationEach {
 		n := len(r.cfg.CharacterList)
 		if n > 0 {
-			r.characterPrompt = r.cfg.CharacterList[r.rnd.Intn(n)].Text
+			item := r.cfg.CharacterList[r.rnd.Intn(n)]
+			r.characterPrompt = item.Text
+			r.characterTags = append([]string(nil), item.Tags...)
 		} else {
 			r.characterPrompt = ""
+			r.characterTags = nil
 		}
 		r.requestCount = 0
 	}
@@ -222,12 +234,12 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 	}
 	resp, err := r.companion.SendMessageWithImage(ctx, r.characterPrompt, assistantPrompt, userPrompt, processed)
 	if err != nil {
-		return "", err
+		return Response{}, err
 	}
 	r.requestCount++
 	// Сохраняем ответ (локальный лимит истории применяется внутри localConv)
 	r.localConv.AppendResponse(resp)
-	return resp, nil
+	return Response{Text: resp, Tags: append([]string(nil), r.characterTags...)}, nil
 
 }
 

@@ -2,7 +2,6 @@ package yandex
 
 import (
 	"OpenAIClient/internal/config"
-	"OpenAIClient/internal/service/tts/player"
 	"bytes"
 	"context"
 	"errors"
@@ -15,24 +14,23 @@ import (
 
 const endpoint = "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize"
 
-// Client реализует синтез речи через Yandex SpeechKit и воспроизводит результат.
+// Client реализует синтез речи через Yandex SpeechKit.
 type Client struct {
-	http   *http.Client
-	player player.Player
+	http *http.Client
 }
 
-func New(p player.Player) *Client {
-	return &Client{http: http.DefaultClient, player: p}
+func New() *Client {
+	return &Client{http: http.DefaultClient}
 }
 
-// Synthesize выполняет запрос к Yandex TTS и воспроизводит аудио. cfg должен быть config.YandexTTSConfig.
-func (c *Client) Synthesize(ctx context.Context, text string, _ string, cfg any) error {
+// Synthesize выполняет запрос к Yandex TTS и возвращает аудио. cfg должен быть config.YandexTTSConfig.
+func (c *Client) Synthesize(ctx context.Context, text string, _ string, cfg any) (string, io.ReadCloser, error) {
 	yc, ok := cfg.(config.YandexTTSConfig)
 	if !ok {
-		return errors.New("yandex tts: unexpected config type")
+		return "", nil, errors.New("yandex tts: unexpected config type")
 	}
 	if strings.TrimSpace(yc.APIKey) == "" {
-		return errors.New("yandex tts: empty API key (set YC_TTS_API_KEY in .env/ENV or pass via flag)")
+		return "", nil, errors.New("yandex tts: empty API key (set YC_TTS_API_KEY in .env/ENV or pass via flag)")
 	}
 	// Значения по умолчанию задаются исключительно в config.Defaults().
 	// Здесь используем переданные из конфигурации параметры как есть.
@@ -50,26 +48,28 @@ func (c *Client) Synthesize(ctx context.Context, text string, _ string, cfg any)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Authorization", "Api-Key "+yc.APIKey)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
-	defer resp.Body.Close()
+	// Не закрываем здесь resp.Body — отдадим вызывающему звук как ReadCloser
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		if len(b) == 0 {
 			b = []byte(resp.Status)
 		}
-		return fmt.Errorf("yandex tts error: status=%d, body=%s", resp.StatusCode, bytes.TrimSpace(b))
+		// Закрыть тело при ошибке
+		resp.Body.Close()
+		return "", nil, fmt.Errorf("yandex tts error: status=%d, body=%s", resp.StatusCode, bytes.TrimSpace(b))
 	}
 
-	return c.player.Play(format, resp.Body)
+	return format, resp.Body, nil
 }
 
 //

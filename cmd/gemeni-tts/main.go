@@ -75,13 +75,18 @@ func main() {
 	defer zl.Sync() // flush
 
 	p := player.New() // громкость регулируется на стороне провайдера
-	client := gtts.New(p, logger)
+	client := gtts.New(logger)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := client.Synthesize(ctx, text, cfg.GeminiTTS.Prompt, cfg.GeminiTTS); err != nil {
+	format, rc, err := client.Synthesize(ctx, text, cfg.GeminiTTS.Prompt, cfg.GeminiTTS)
+	if err != nil {
 		logger.Errorw("Gemini TTS synthesize failed", "error", err)
+		os.Exit(1)
+	}
+	if err := p.Play(format, rc); err != nil {
+		logger.Errorw("Gemini TTS play failed", "error", err)
 		os.Exit(1)
 	}
 

@@ -15,10 +15,12 @@ import (
 	"OpenAIClient/internal/service/speech"
 	statebuf "OpenAIClient/internal/service/state"
 	"OpenAIClient/internal/service/stt/handy"
+	"OpenAIClient/internal/service/vtube"
 	"context"
 	"errors"
 	"os"
 	"os/signal"
+	"strings"
 
 	"github.com/openai/openai-go/v3"
 	"go.uber.org/zap"
@@ -116,7 +118,21 @@ func main() {
 	} else {
 		sugar.Infow("Screenshotter is disabled by config; not starting")
 	}
-	sch := scheduler.New(cfg, req, sp, sugar)
+	// VTube Studio клиент — при включении в конфиге
+	var vts *vtube.Client
+	if cfg.VTube.Enabled && strings.TrimSpace(cfg.VTubeAPIKey) != "" {
+		vts = vtube.New(cfg.VTube, cfg.VTubeAPIKey, sugar)
+		if err := vts.Start(ctx); err != nil {
+			// Требование: при невозможности подключиться к VTube — залогировать и завершить приложение
+			sugar.Fatalw("Failed to start VTube client", "error", err)
+			return
+		}
+		sugar.Infow("VTube client started")
+	} else {
+		sugar.Infow("VTube client disabled or no API key provided")
+	}
+
+	sch := scheduler.New(cfg, req, sp, sugar, vts)
 	if err := sch.Run(ctx); err != nil {
 		if errors.Is(err, context.Canceled) {
 			sugar.Infow("Scheduler stopped", "reason", "context canceled")

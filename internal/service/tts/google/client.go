@@ -2,7 +2,6 @@ package google
 
 import (
 	"OpenAIClient/internal/config"
-	"OpenAIClient/internal/service/tts/player"
 	"bytes"
 	"context"
 	"errors"
@@ -15,27 +14,26 @@ import (
 	"go.uber.org/zap"
 )
 
-// Client реализует синтез речи через Google Cloud Text-to-Speech и воспроизводит результат.
+// Client реализует синтез речи через Google Cloud Text-to-Speech.
 type Client struct {
-	player player.Player
 	logger *zap.SugaredLogger
 }
 
-func New(p player.Player, logger *zap.SugaredLogger) *Client {
-	return &Client{player: p, logger: logger}
+func New(logger *zap.SugaredLogger) *Client {
+	return &Client{logger: logger}
 }
 
-// Synthesize выполняет запрос к Google TTS и воспроизводит аудио. cfg должен быть config.GoogleTTSConfig.
-func (c *Client) Synthesize(ctx context.Context, text string, _ string, cfg any) error {
+// Synthesize выполняет запрос к Google TTS и возвращает аудио. cfg должен быть config.GoogleTTSConfig.
+func (c *Client) Synthesize(ctx context.Context, text string, _ string, cfg any) (string, io.ReadCloser, error) {
 	gc, ok := cfg.(config.GoogleTTSConfig)
 	if !ok {
-		return errors.New("google tts: unexpected config type")
+		return "", nil, errors.New("google tts: unexpected config type")
 	}
 
 	// Создаём клиента SDK
 	ttsClient, err := gctts.NewClient(ctx)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	defer ttsClient.Close()
 
@@ -68,13 +66,13 @@ func (c *Client) Synthesize(ctx context.Context, text string, _ string, cfg any)
 	started := time.Now()
 	resp, err := ttsClient.SynthesizeSpeech(ctx, req)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	if c.logger != nil {
 		c.logger.Infow("Google TTS synthesize completed", "took", time.Since(started).String())
 	}
 
-	// Проигрываем MP3
+	// Возвращаем MP3
 	r := io.NopCloser(bytes.NewReader(resp.GetAudioContent()))
-	return c.player.Play("mp3", r)
+	return "mp3", r, nil
 }

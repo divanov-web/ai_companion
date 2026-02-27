@@ -64,6 +64,8 @@ type Config struct {
 	// Screenshotter — включение/выключение фоновой съёмки скриншотов
 	ScreenshotEnabled bool `env:"SCREENSHOT_ENABLED"` // По умолчанию включён
 
+	// VTube Studio — конфигурация API клиента
+	VTube VTubeConfig
 	// VTube Studio — API ключ (Authentication Token), полученный ранее через AuthenticationTokenRequest
 	VTubeAPIKey string `env:"VTUBE_API_KEY"`
 }
@@ -82,6 +84,16 @@ type YandexTTSConfig struct {
 	Speed   string `env:"YC_TTS_SPEED"`   // Скорость синтеза (1.0 по умолчанию в API); 1.3 = ~30% быстрее
 	Emotion string `env:"YC_TTS_EMOTION"` // Эмоциональная окраска: neutral|good|evil. По умолчанию evil
 	Volume  int    `env:"YC_TTS_VOLUME"`  // Громкость 0-100; 100 — не изменять громкость todo вероятно есть баг, что громкость уменьшается слишком быстро
+}
+
+// VTubeConfig — конфигурация интеграции с VTube Studio Public API
+type VTubeConfig struct {
+	Enabled         bool   `env:"VTUBE_ENABLED"`
+	WSURL           string `env:"VTUBE_WS_URL"` // ws://localhost:8001
+	PluginName      string `env:"VTUBE_PLUGIN_NAME"`
+	PluginDeveloper string `env:"VTUBE_PLUGIN_DEV"`
+	APIVersion      string `env:"VTUBE_API_VERSION"`
+	ResetEmotion    string `env:"VTUBE_RESET_EMOTION"` // имя хоткея для сброса эмоций
 }
 
 // GoogleTTSConfig — конфигурация для синтеза речи через Google Cloud Text-to-Speech.
@@ -195,6 +207,14 @@ func Defaults() *Config {
 		},
 		StateHeader: "Состояние игры",
 		StateMax:    3,
+		VTube: VTubeConfig{
+			Enabled:         false,
+			WSURL:           "ws://localhost:8001",
+			PluginName:      "OpenAIClient VTS Trigger",
+			PluginDeveloper: "OpenAIClient",
+			APIVersion:      "1.0",
+			ResetEmotion:    "reset",
+		},
 	}
 }
 

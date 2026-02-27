@@ -11,6 +11,7 @@ import (
 	"OpenAIClient/internal/service/tts/google"
 	"OpenAIClient/internal/service/tts/player"
 	"OpenAIClient/internal/service/tts/yandex"
+	"OpenAIClient/internal/service/vtube"
 	"context"
 	"errors"
 	"strings"
@@ -32,9 +33,11 @@ type Scheduler struct {
 	req      *requester.Requester
 	speech   *speech.Speech
 	tts      tts.Synthesizer
+	player   player.Player
 	notifier *notify.SoundNotifier
 	logger   *zap.SugaredLogger
 	cleaner  *image.Cleaner
+	vts      *vtube.Client
 
 	running    atomic.Bool
 	mu         sync.Mutex
@@ -44,7 +47,7 @@ type Scheduler struct {
 	consecutiveErrors int // счётчик ошибок
 }
 
-func New(cfg *config.Config, req *requester.Requester, sp *speech.Speech, logger *zap.SugaredLogger) *Scheduler {
+func New(cfg *config.Config, req *requester.Requester, sp *speech.Speech, logger *zap.SugaredLogger, vts *vtube.Client) *Scheduler {
 	// Инициализируем плеер: для Yandex — учитываем внешнюю громкость; для Google — отдаём на откуп VolumeGainDb
 	var p *player.Default
 	service := strings.ToLower(strings.TrimSpace(cfg.TTSService))
@@ -64,17 +67,17 @@ func New(cfg *config.Config, req *requester.Requester, sp *speech.Speech, logger
 	var synth tts.Synthesizer
 	switch service {
 	case "yandex":
-		synth = yandex.New(p)
+		synth = yandex.New()
 	case "gemini", "google-gemini":
-		synth = gemini.New(p, logger)
+		synth = gemini.New(logger)
 	default: // google
-		synth = google.New(p, logger)
+		synth = google.New(logger)
 	}
 
 	// Нотификатор звука (два типа): получение ответа ИИ и перед TTS
 	notifier := notify.NewSoundNotifier(logger, cfg.NotificationSendAI, cfg.NotificationSendTTS)
 
-	s := &Scheduler{cfg: cfg, req: req, speech: sp, tts: synth, notifier: notifier, logger: logger, cleaner: image.NewCleaner(logger)}
+	s := &Scheduler{cfg: cfg, req: req, speech: sp, tts: synth, player: p, notifier: notifier, logger: logger, cleaner: image.NewCleaner(logger), vts: vts}
 	s.logger.Infow("TTS selected", "service", service)
 	return s
 }
@@ -201,14 +204,14 @@ func (s *Scheduler) runTick(parent context.Context) error {
 	s.logger.Infow("Tick start")
 
 	// Запрос через requester: выбор текста теперь происходит в Requester
-	resp, err := s.req.SendMessage(tickCtx)
+	rresp, err := s.req.SendMessage(tickCtx)
 	if err != nil {
 		return err
 	}
 
 	// Проигрываем TTS, если есть ответ
-	if resp != "" {
-		s.logger.Infow(resp)
+	if rresp.Text != "" {
+		s.logger.Infow(rresp.Text)
 		// Перед синтезом речи проигрываем уведомление TTS (не критично к ошибкам)
 		if s.notifier != nil {
 			if err := s.notifier.PlayTTS(tickCtx); err != nil {
@@ -227,11 +230,30 @@ func (s *Scheduler) runTick(parent context.Context) error {
 		default: // google
 			ttsCfg = s.cfg.GoogleTTS
 		}
-		if ttsErr := s.tts.Synthesize(tickCtx, resp, prompt, ttsCfg); ttsErr != nil {
+		format, rc, synErr := s.tts.Synthesize(tickCtx, rresp.Text, prompt, ttsCfg)
+		if synErr != nil {
 			// Ошибка TTS трактуем как ошибку тика?
 			// По ТЗ: «TTS проигрывается при каждом тике, если был ответ» — ошибок TTS не указано отдельно,
 			// логируем и считаем ошибкой тика, чтобы не зациклиться в немом режиме.
-			return ttsErr
+			return synErr
+		}
+		// До воспроизведения отправим эмоции в VTube по тегам
+		if s.vts != nil && len(rresp.Tags) > 0 && s.cfg.VTube.Enabled {
+			// Логируем список тегов перед отправкой — для диагностики несоответствий имён хоткеев
+			s.logger.Infow("VTS tags before trigger", "tags", rresp.Tags)
+			if err := s.vts.TriggerByNames(rresp.Tags); err != nil {
+				s.logger.Warnw("VTS trigger before play failed", "error", err)
+			}
+		}
+		// Проигрываем звук
+		if err := s.player.Play(format, rc); err != nil {
+			return err
+		}
+		// После воспроизведения — сброс эмоции
+		if s.vts != nil && s.cfg.VTube.Enabled {
+			if err := s.vts.TriggerReset(); err != nil {
+				s.logger.Warnw("VTS reset after play failed", "error", err)
+			}
 		}
 	}
 
