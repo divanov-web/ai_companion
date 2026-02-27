@@ -51,7 +51,9 @@ func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, 
 		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 	n := len(cfg.CharacterList)
-	r.characterPrompt = cfg.CharacterList[r.rnd.Intn(n)]
+	if n > 0 {
+		r.characterPrompt = cfg.CharacterList[r.rnd.Intn(n)].Text
+	}
 	return r
 }
 
@@ -136,7 +138,11 @@ func (r *Requester) SendMessage(ctx context.Context) (string, error) {
 	// Ротация характера: каждые N успешных сообщений выбираем новый
 	if r.cfg.RotateConversationEach > 0 && r.requestCount >= r.cfg.RotateConversationEach {
 		n := len(r.cfg.CharacterList)
-		r.characterPrompt = r.cfg.CharacterList[r.rnd.Intn(n)]
+		if n > 0 {
+			r.characterPrompt = r.cfg.CharacterList[r.rnd.Intn(n)].Text
+		} else {
+			r.characterPrompt = ""
+		}
 		r.requestCount = 0
 	}
 

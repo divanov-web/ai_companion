@@ -7,11 +7,13 @@ require (
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/faiface/beep v1.1.0
 	github.com/gempir/go-twitch-irc/v4 v4.3.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
 	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/openai/openai-go/v3 v3.21.0
 	go.uber.org/zap v1.27.1
+	golang.org/x/oauth2 v0.30.0
 )
 
 require (
@@ -48,7 +50,6 @@ require (
 	golang.org/x/image v0.0.0-20190227222117-0694c2d4d067 // indirect
 	golang.org/x/mobile v0.0.0-20190415191353-3e0bab5405d6 // indirect
 	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect

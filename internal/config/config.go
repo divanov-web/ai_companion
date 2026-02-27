@@ -6,23 +6,25 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
+
 	"github.com/caarlos0/env/v6"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	DebugMode           bool     `env:"DEBUG_MODE"`                      //Режим дебага
-	AssistantPrompt     string   `env:"ASSISTANT_PROMPT"`                //Текст промпта ассистента диалога
-	AssistantSentences  int      `env:"ASSISTANT_SENTENCES"`             // Количество предложений в ответе ассистента
-	CharacterList       []string `env:"CHARACTER_LIST" envSeparator:";"` // Список характеров/стилей персонажа, конкатенируется со стартовым промптом
-	SpeechPrompt        []string `env:"SPEECH_PROMPT" envSeparator:";"`  // Список фиксированных сообщений для каждого тика; выбирается случайно
-	ImagesSourceDir     string   `env:"IMAGES_SOURCE_DIR"`               // Папка с исходными изображениями
-	ImagesToPick        int      `env:"IMAGES_TO_PICK"`                  // Сколько последних изображений брать
-	ImagesTTLSeconds    int      `env:"IMAGES_TTL_SECONDS"`              // Время, через которое картинки считаются старыми и их надо удалить, в секундах
-	HistoryHeader       string   `env:"HISTORY_HEADER"`                  // Заголовок блока с историей ответов ИИ
-	MaxHistoryRecords   int      `env:"MAX_HISTORY_RECORDS"`             // Максимум хранимых ответов ИИ в локальной истории
-	NotificationSendAI  string   `env:"NOTIFICATION_SEND_AI"`            // Путь к звуку уведомления ИИ (получено сообщение)
-	NotificationSendTTS string   `env:"NOTIFICATION_SEND_TTS"`           // Путь к звуку перед TTS (озвучка ответа)
+	DebugMode           bool            `env:"DEBUG_MODE"`          //Режим дебага
+	AssistantPrompt     string          `env:"ASSISTANT_PROMPT"`    //Текст промпта ассистента диалога
+	AssistantSentences  int             `env:"ASSISTANT_SENTENCES"` // Количество предложений в ответе ассистента
+	CharacterList       []CharacterItem // Обрабатывается методом LoadCharacterListFromEnv из .env переменной CHARACTER_LIST
+	SpeechPrompt        []string        `env:"SPEECH_PROMPT" envSeparator:";"` // Список фиксированных сообщений для каждого тика; выбирается случайно
+	ImagesSourceDir     string          `env:"IMAGES_SOURCE_DIR"`              // Папка с исходными изображениями
+	ImagesToPick        int             `env:"IMAGES_TO_PICK"`                 // Сколько последних изображений брать
+	ImagesTTLSeconds    int             `env:"IMAGES_TTL_SECONDS"`             // Время, через которое картинки считаются старыми и их надо удалить, в секундах
+	HistoryHeader       string          `env:"HISTORY_HEADER"`                 // Заголовок блока с историей ответов ИИ
+	MaxHistoryRecords   int             `env:"MAX_HISTORY_RECORDS"`            // Максимум хранимых ответов ИИ в локальной истории
+	NotificationSendAI  string          `env:"NOTIFICATION_SEND_AI"`           // Путь к звуку уведомления ИИ (получено сообщение)
+	NotificationSendTTS string          `env:"NOTIFICATION_SEND_TTS"`          // Путь к звуку перед TTS (озвучка ответа)
 	// Скриншоттер
 	ScreenshotIntervalSeconds int `env:"SCREENSHOT_INTERVAL_SECONDS"` // Периодичность снятия скриншотов всего экрана, в секундах
 	// Общий переключатель сервиса TTS и конфиг Google/Gemini TTS
@@ -61,6 +63,15 @@ type Config struct {
 
 	// Screenshotter — включение/выключение фоновой съёмки скриншотов
 	ScreenshotEnabled bool `env:"SCREENSHOT_ENABLED"` // По умолчанию включён
+
+	// VTube Studio — API ключ (Authentication Token), полученный ранее через AuthenticationTokenRequest
+	VTubeAPIKey string `env:"VTUBE_API_KEY"`
+}
+
+// CharacterItem элемент из CHARACTER_LIST: текст и (пока не используемые) теги
+type CharacterItem struct {
+	Tags []string `json:"tags"`
+	Text string   `json:"text"`
 }
 
 // YandexTTSConfig конфигурация для синтеза речи через Yandex SpeechKit.
@@ -119,7 +130,7 @@ func Defaults() *Config {
 		DebugMode:                 false,
 		AssistantPrompt:           "Ты помощник капитана и озвучиваешь то, что видишь на картинках",
 		AssistantSentences:        3,
-		CharacterList:             []string{""},
+		CharacterList:             []CharacterItem{{Text: ""}},
 		SpeechPrompt:              []string{"доложи статус"},
 		ImagesSourceDir:           "images\\sharex",
 		ImagesToPick:              3,
@@ -177,7 +188,7 @@ func Defaults() *Config {
 			Prompt:           "Read kawaii",
 			SpeakingRate:     1.2,
 			Pitch:            0.0,
-			VolumeGainDb:     0.0,
+			VolumeGainDb:     -5.0,
 			EffectsProfileID: "",
 			InputType:        "prompt",
 			Endpoint:         "https://texttospeech.googleapis.com/v1beta1/text:synthesize",
@@ -194,6 +205,9 @@ func NewConfig() *Config {
 	cfg := Defaults()
 	_ = env.Parse(cfg)
 
+	// Обработка CHARACTER_LIST из .env (JSON-массив объектов с полями tags/text
+	cfg.LoadCharacterListFromEnv()
+
 	// Валидация для Google TTS: проверка наличия и доступности файла ключа
 	if strings.EqualFold(cfg.TTSService, "google") {
 		cred := strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
@@ -206,4 +220,39 @@ func NewConfig() *Config {
 	}
 
 	return cfg
+}
+
+// LoadCharacterListFromEnv парсит переменную окружения CHARACTER_LIST.
+// Поддерживаются два формата:
+// 1) Новый: JSON-массив объектов {"tags": [..], "text": "..."}
+// 2) Старый: строка с элементами, разделёнными ';' — каждый элемент становится Text, теги пустые
+func (c *Config) LoadCharacterListFromEnv() {
+	raw := strings.TrimSpace(os.Getenv("CHARACTER_LIST"))
+	if raw == "" {
+		return // оставить дефолт
+	}
+
+	// Попробуем как JSON
+	if strings.HasPrefix(raw, "[") {
+		var items []CharacterItem
+		if err := json.Unmarshal([]byte(raw), &items); err == nil && len(items) > 0 {
+			c.CharacterList = items
+			return
+		}
+		// Если JSON не распарсился — падаем в старый режим ниже
+	}
+
+	// Старый режим: разделитель ';'
+	parts := strings.Split(raw, ";")
+	out := make([]CharacterItem, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		out = append(out, CharacterItem{Text: p})
+	}
+	if len(out) > 0 {
+		c.CharacterList = out
+	}
 }
