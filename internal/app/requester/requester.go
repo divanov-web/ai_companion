@@ -51,14 +51,11 @@ func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, 
 	return r
 }
 
-// Response — результат отправки сообщения: текст для TTS и выбранные теги характера.
-type Response struct {
-	Text string
-	Tags []string
-}
+// Ранее возвращался Response с Tags для VTube. Теперь Requester не знает о тегах
+// и возвращает только текст ответа.
 
 // SendMessage выполняет сценарий «Послать запрос» один раз.
-func (r *Requester) SendMessage(ctx context.Context) (Response, error) {
+func (r *Requester) SendMessage(ctx context.Context, characterItem *config.CharacterItem) (string, error) {
 	var userPrompt string
 
 	var b strings.Builder
@@ -117,12 +114,12 @@ func (r *Requester) SendMessage(ctx context.Context) (Response, error) {
 	// Найти последние N картинок
 	paths, err := r.pickLastImages(r.cfg.ImagesSourceDir, r.cfg.ImagesToPick)
 	if err != nil {
-		return Response{}, err
+		return "", err
 	}
 	// Новая логика: если нет И изображений, И сообщений из State — не отправляем
 	if len(paths) == 0 && len(stateMsgs) == 0 {
 		r.logger.Infow("Нет данных для отправки: нет изображений и нет сообщений из State", "dir", r.cfg.ImagesSourceDir)
-		return Response{}, nil
+		return "", nil
 	}
 
 	// Подготовить метаданные изображений для отправки (без доп. обработки)
@@ -135,13 +132,10 @@ func (r *Requester) SendMessage(ctx context.Context) (Response, error) {
 	}
 	// Позволяем пустой список изображений — адаптер должен уметь отправлять без картинок
 
-	// Выбор характера: всегда случайный на каждое сообщение
+	// Характер предоставлен scheduler-ом (опционально)
 	var characterPrompt string
-	var characterTags []string
-	if n := len(r.cfg.CharacterList); n > 0 {
-		item := r.cfg.CharacterList[r.rnd.Intn(n)]
-		characterPrompt = item.Text
-		characterTags = append([]string(nil), item.Tags...)
+	if characterItem != nil {
+		characterPrompt = characterItem.Text
 	}
 
 	// Собрать историю с заголовком из конфига
@@ -220,11 +214,11 @@ func (r *Requester) SendMessage(ctx context.Context) (Response, error) {
 	}
 	resp, err := r.companion.SendMessageWithImage(ctx, characterPrompt, assistantPrompt, userPrompt, processed)
 	if err != nil {
-		return Response{}, err
+		return "", err
 	}
 	// Сохраняем ответ (локальный лимит истории применяется внутри localConv)
 	r.localConv.AppendResponse(resp)
-	return Response{Text: resp, Tags: append([]string(nil), characterTags...)}, nil
+	return resp, nil
 
 }
 

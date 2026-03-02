@@ -14,6 +14,7 @@ import (
 	"OpenAIClient/internal/service/vtube"
 	"context"
 	"errors"
+	"math/rand"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -203,15 +204,24 @@ func (s *Scheduler) runTick(parent context.Context) error {
 	start := time.Now()
 	s.logger.Infow("Tick start")
 
-	// Запрос через requester: выбор текста теперь происходит в Requester
-	rresp, err := s.req.SendMessage(tickCtx)
+	// Выбор характера (если есть список)
+	var characterItem *config.CharacterItem
+	var vtubeTags []string
+	n := len(s.cfg.CharacterList)
+	item := s.cfg.CharacterList[rand.Intn(n)]
+	// фиксируем копию тегов для VTube
+	vtubeTags = append([]string(nil), item.Tags...)
+	characterItem = &item
+
+	// Запрос через requester: формирование промпта и отправка
+	text, err := s.req.SendMessage(tickCtx, characterItem)
 	if err != nil {
 		return err
 	}
 
 	// Проигрываем TTS, если есть ответ
-	if rresp.Text != "" {
-		s.logger.Infow(rresp.Text)
+	if text != "" {
+		s.logger.Infow(text)
 		// Перед синтезом речи проигрываем уведомление TTS (не критично к ошибкам)
 		if s.notifier != nil {
 			if err := s.notifier.PlayTTS(tickCtx); err != nil {
@@ -226,11 +236,11 @@ func (s *Scheduler) runTick(parent context.Context) error {
 			ttsCfg = s.cfg.YandexTTS
 		case "gemini", "google-gemini":
 			ttsCfg = s.cfg.GeminiTTS
-			prompt = s.cfg.GeminiTTS.Prompt
+			prompt = characterItem.Text
 		default: // google
 			ttsCfg = s.cfg.GoogleTTS
 		}
-		format, rc, synErr := s.tts.Synthesize(tickCtx, rresp.Text, prompt, ttsCfg)
+		format, rc, synErr := s.tts.Synthesize(tickCtx, text, prompt, ttsCfg)
 		if synErr != nil {
 			// Ошибка TTS трактуем как ошибку тика?
 			// По ТЗ: «TTS проигрывается при каждом тике, если был ответ» — ошибок TTS не указано отдельно,
@@ -238,10 +248,10 @@ func (s *Scheduler) runTick(parent context.Context) error {
 			return synErr
 		}
 		// До воспроизведения отправим эмоции в VTube по тегам
-		if s.vts != nil && len(rresp.Tags) > 0 && s.cfg.VTube.Enabled {
+		if s.vts != nil && len(vtubeTags) > 0 && s.cfg.VTube.Enabled {
 			// Логируем список тегов перед отправкой — для диагностики несоответствий имён хоткеев
-			s.logger.Infow("VTS tags before trigger", "tags", rresp.Tags)
-			if err := s.vts.TriggerByNames(rresp.Tags); err != nil {
+			s.logger.Infow("VTS tags before trigger", "tags", vtubeTags)
+			if err := s.vts.TriggerByNames(vtubeTags); err != nil {
 				s.logger.Warnw("VTS trigger before play failed", "error", err)
 			}
 		}
