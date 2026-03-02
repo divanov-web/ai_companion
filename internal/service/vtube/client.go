@@ -214,9 +214,6 @@ func (c *Client) TriggerByNames(names []string) error {
 
 	// упорядочим имена стабильно
 	names = slices.Compact(names)
-	if c.log != nil {
-		c.log.Infow("VTS trigger by names", "names", names)
-	}
 	// Подготовим список пар name+id к отправке
 	type pair struct{ name, id string }
 	pairs := make([]pair, 0, len(names))
@@ -238,7 +235,6 @@ func (c *Client) TriggerByNames(names []string) error {
 		for _, p := range pairs {
 			ids = append(ids, p.id)
 		}
-		c.log.Infow("VTS trigger by ids", "ids", ids)
 	}
 
 	// Он‑деманд подключение: подключаемся, аутентифицируемся, отправляем триггеры и закрываем.

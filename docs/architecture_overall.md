@@ -21,7 +21,7 @@ AI Компаньон — это «второй пилот» для игрока
 - Промпты для AI в .env файле
 - Состояние игры Dota через Game State Integration (Опционально)
 - аватар VTube Studio, который открывает рот на звуки приложения
-- интеграция эмоций VTube Studio, которые так же отправляются в промпт AI
+- интеграция эмоций VTube Studio, которые задаются перед промптом в AI
 
 ## Аниме аватар в VTube Studio
 Go App TTS ──► Virtual Audio Cable ──► VTube Studio (LipSync)

@@ -34,11 +34,10 @@ type Config struct {
 	YandexTTS  YandexTTSConfig
 
 	// Настройки таймера (Scheduler)
-	TimerIntervalSeconds   int    `env:"TIMER_INTERVAL_SECONDS"`   // Базовый интервал между тиками
-	TickTimeoutSeconds     int    `env:"TICK_TIMEOUT_SECONDS"`     // Таймаут одного тика
-	OverlapPolicy          string `env:"OVERLAP_POLICY"`           // Политика при наложении: skip|preempt
-	MaxConsecutiveErrors   int    `env:"MAX_CONSECUTIVE_ERRORS"`   // Сколько ошибок подряд до остановки приложения
-	RotateConversationEach int    `env:"ROTATE_CONVERSATION_EACH"` // Каждые N успешных запросов начинать новый диалог
+	TimerIntervalSeconds int    `env:"TIMER_INTERVAL_SECONDS"` // Базовый интервал между тиками
+	TickTimeoutSeconds   int    `env:"TICK_TIMEOUT_SECONDS"`   // Таймаут одного тика
+	OverlapPolicy        string `env:"OVERLAP_POLICY"`         // Политика при наложении: skip|preempt
+	MaxConsecutiveErrors int    `env:"MAX_CONSECUTIVE_ERRORS"` // Сколько ошибок подряд до остановки приложения
 
 	// STT (Handy) и Speech
 	STTHandyWindow  time.Duration `env:"STT_HANDY_WINDOW"`  // Окно совпадения буфера и хоткея
@@ -153,13 +152,12 @@ func Defaults() *Config {
 		ScreenshotIntervalSeconds: 2,
 		ScreenshotEnabled:         true,
 		// Таймер по умолчанию
-		RotateConversationEach: 3,
-		TimerIntervalSeconds:   5, //Задержка перед началом тика
-		TickTimeoutSeconds:     60,
-		OverlapPolicy:          "skip", //`skip`|`preempt`
-		MaxConsecutiveErrors:   3,
-		NotificationSendAI:     "sound/notification2.mp3",
-		NotificationSendTTS:    "sound/notification3.mp3",
+		TimerIntervalSeconds: 5, //Задержка перед началом тика
+		TickTimeoutSeconds:   60,
+		OverlapPolicy:        "skip", //`skip`|`preempt`
+		MaxConsecutiveErrors: 3,
+		NotificationSendAI:   "sound/notification2.mp3",
+		NotificationSendTTS:  "sound/notification3.mp3",
 		// STT/Speech
 		STTHandyWindow:  time.Second,
 		STTHotkeyDelay:  100 * time.Millisecond,

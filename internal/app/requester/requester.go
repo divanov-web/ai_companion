@@ -25,18 +25,15 @@ import (
 )
 
 type Requester struct {
-	cfg             *config.Config
-	companion       *companion.Companion
-	logger          *zap.SugaredLogger
-	localConv       *localconversation.LocalConversation
-	speech          *speech.Speech
-	state           *st.State
-	chat            *chat.Chat
-	notifier        *notify.SoundNotifier
-	rnd             *rand.Rand
-	requestCount    int // Количество успешных отправок в текущем диалоге
-	characterPrompt string
-	characterTags   []string
+	cfg       *config.Config
+	companion *companion.Companion
+	logger    *zap.SugaredLogger
+	localConv *localconversation.LocalConversation
+	speech    *speech.Speech
+	state     *st.State
+	chat      *chat.Chat
+	notifier  *notify.SoundNotifier
+	rnd       *rand.Rand
 }
 
 func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, stbuf *st.State, ch *chat.Chat, notifier *notify.SoundNotifier, logger *zap.SugaredLogger) *Requester {
@@ -50,12 +47,6 @@ func New(cfg *config.Config, companion *companion.Companion, sp *speech.Speech, 
 		chat:      ch,
 		notifier:  notifier,
 		rnd:       rand.New(rand.NewSource(time.Now().UnixNano())),
-	}
-	n := len(cfg.CharacterList)
-	if n > 0 {
-		item := cfg.CharacterList[r.rnd.Intn(n)]
-		r.characterPrompt = item.Text
-		r.characterTags = append([]string(nil), item.Tags...)
 	}
 	return r
 }
@@ -144,18 +135,13 @@ func (r *Requester) SendMessage(ctx context.Context) (Response, error) {
 	}
 	// Позволяем пустой список изображений — адаптер должен уметь отправлять без картинок
 
-	// Ротация характера: каждые N успешных сообщений выбираем новый
-	if r.cfg.RotateConversationEach > 0 && r.requestCount >= r.cfg.RotateConversationEach {
-		n := len(r.cfg.CharacterList)
-		if n > 0 {
-			item := r.cfg.CharacterList[r.rnd.Intn(n)]
-			r.characterPrompt = item.Text
-			r.characterTags = append([]string(nil), item.Tags...)
-		} else {
-			r.characterPrompt = ""
-			r.characterTags = nil
-		}
-		r.requestCount = 0
+	// Выбор характера: всегда случайный на каждое сообщение
+	var characterPrompt string
+	var characterTags []string
+	if n := len(r.cfg.CharacterList); n > 0 {
+		item := r.cfg.CharacterList[r.rnd.Intn(n)]
+		characterPrompt = item.Text
+		characterTags = append([]string(nil), item.Tags...)
 	}
 
 	// Собрать историю с заголовком из конфига
@@ -225,21 +211,20 @@ func (r *Requester) SendMessage(ctx context.Context) (Response, error) {
 	}
 
 	// Отправить сообщение (можно без изображений)
-	r.logger.Infow("Отправка сообщения", "userSpeech", userSpeech, "characterPrompt", r.characterPrompt, "images", len(processed), "stateMsgs", len(stateMsgs))
+	r.logger.Infow("Отправка сообщения", "userSpeech", userSpeech, "characterPrompt", characterPrompt, "images", len(processed), "stateMsgs", len(stateMsgs))
 	// Проиграть звук уведомления (получение/отправка к ИИ) перед отправкой
 	if r.notifier != nil {
 		if err := r.notifier.PlayAI(ctx); err != nil {
 			r.logger.Debugw("Ошибка проигрывания звука уведомления (пропускаем)", "error", err)
 		}
 	}
-	resp, err := r.companion.SendMessageWithImage(ctx, r.characterPrompt, assistantPrompt, userPrompt, processed)
+	resp, err := r.companion.SendMessageWithImage(ctx, characterPrompt, assistantPrompt, userPrompt, processed)
 	if err != nil {
 		return Response{}, err
 	}
-	r.requestCount++
 	// Сохраняем ответ (локальный лимит истории применяется внутри localConv)
 	r.localConv.AppendResponse(resp)
-	return Response{Text: resp, Tags: append([]string(nil), r.characterTags...)}, nil
+	return Response{Text: resp, Tags: append([]string(nil), characterTags...)}, nil
 
 }
 
