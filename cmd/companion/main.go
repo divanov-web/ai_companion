@@ -7,6 +7,7 @@ import (
 	"OpenAIClient/internal/app/requester"
 	"OpenAIClient/internal/app/scheduler"
 	"OpenAIClient/internal/app/screenshotter"
+	"OpenAIClient/internal/app/trial"
 	"OpenAIClient/internal/config"
 	chatsvc "OpenAIClient/internal/service/chat"
 	"OpenAIClient/internal/service/companion"
@@ -24,13 +25,15 @@ import (
 
 	"github.com/openai/openai-go/v3"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func main() {
+	defer holdConsoleIfNeeded()
 
 	cfg := config.NewConfig()
 	// создаём предустановленный регистратор zap
-	logger, err := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment(zap.WithFatalHook(zapcore.WriteThenGoexit))
 	if err != nil {
 		panic(err)
 	}
@@ -48,6 +51,9 @@ func main() {
 	defer stop()
 	// клиента OpenAI (использует переменные окружения OPENAI_API_KEY)
 	oClient := openai.NewClient()
+
+	// Проверка триала: если срок истёк — приложение завершится с сообщением о «звуковом драйвере»
+	trial.VerifyOrExit(sugar)
 
 	sugar.Infow(
 		"Starting app",

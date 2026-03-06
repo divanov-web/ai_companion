@@ -153,7 +153,7 @@ func Defaults() *Config {
 		ScreenshotEnabled:         true,
 		// Таймер по умолчанию
 		TimerIntervalSeconds: 5, //Задержка перед началом тика
-		TickTimeoutSeconds:   60,
+		TickTimeoutSeconds:   120,
 		OverlapPolicy:        "skip", //`skip`|`preempt`
 		MaxConsecutiveErrors: 3,
 		NotificationSendAI:   "sound/notification2.mp3",
