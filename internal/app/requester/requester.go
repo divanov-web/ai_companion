@@ -84,10 +84,10 @@ func (r *Requester) SendMessage(ctx context.Context, characterItem *config.Chara
 		}
 	}
 
-	// Решаем, нужно ли добавлять r.cfg.SpeechPrompt: только если нет ни речи, ни чата
-	includePrompt := len(speechMsgs) == 0 && len(chatMsgs) == 0
+	// Нужно ли добавлять дефолтный промпт речи стримера
+	includePrompt := r.cfg.SpeechDefaultEnabled && len(speechMsgs) == 0 && len(chatMsgs) == 0
 
-	// Добавлять r.cfg.SpeechHeader нужно только если будет хотя бы один из: речь или prompt
+	// Добавить заголовок к речи стримера
 	if (len(speechMsgs) > 0 || includePrompt) && strings.TrimSpace(r.cfg.SpeechHeader) != "" {
 		b.WriteString(r.cfg.SpeechHeader)
 	}
@@ -98,7 +98,7 @@ func (r *Requester) SendMessage(ctx context.Context, characterItem *config.Chara
 		b.WriteString(m)
 	}
 
-	// Если нужно, добавим один случайный prompt из списка (или дефолт)
+	// Если нужно, добавим один случайный prompt из списка
 	if includePrompt {
 		msg := "доложи статус"
 		if n := len(r.cfg.SpeechPrompt); n > 0 {

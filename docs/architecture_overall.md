@@ -24,5 +24,18 @@ AI Компаньон — это «второй пилот» для игрока
 - интеграция эмоций VTube Studio, которые задаются перед промптом в AI
 
 ## Аниме аватар в VTube Studio
-Go App TTS ──► Virtual Audio Cable ──► VTube Studio (LipSync)
-└──────────► OBS (как аудио источник)
+Go App TTS ──► Virtual Audio Cable A ──► VoiceCHanger ──► Virtual Audio Cable B ──► VTube Studio (LipSync)
+                                           └──────────► Общие динамики
+
+## Настройки звука с VoiceCHanger
+1. https://vb-audio.com/Cable/ Virtual Audio Cable создаёт два виртуальных кабеля
+2. Go отправляет звук на cable A input
+3. VoiceCHanger принимает звук с cable A output, считая его входящим микрофоном
+4. VoiceCHanger отдаёт получившийся звук в cable B input
+5. cable B input параллельно в настройках звука виндоус ставим на прослушивание
+6. cable B output ловит VTube Studio (LipSync)
+
+## Настройки звука без VoiceCHanger
+1. Go отправляет звук на cable B input
+2. cable B input параллельно в настройках звука виндоус ставим на прослушивание
+3. cable B output ловит VTube Studio (LipSync)

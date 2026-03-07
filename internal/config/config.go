@@ -40,11 +40,12 @@ type Config struct {
 	MaxConsecutiveErrors int    `env:"MAX_CONSECUTIVE_ERRORS"` // Сколько ошибок подряд до остановки приложения
 
 	// STT (Handy) и Speech
-	STTHandyWindow  time.Duration `env:"STT_HANDY_WINDOW"`  // Окно совпадения буфера и хоткея
-	STTHotkeyDelay  time.Duration `env:"STT_HOTKEY_DELAY"`  // Задержка реакции на Ctrl+Enter
-	SpeechHeader    string        `env:"SPEECH_HEADER"`     // Заголовок для блока сообщений из речи
-	SpeechMax       int           `env:"SPEECH_MAX"`        // Максимум хранимых сообщений речи
-	EnableEarlyTick bool          `env:"ENABLE_EARLY_TICK"` // Запускать тик ранее при наличии сообщений речи
+	STTHandyWindow       time.Duration `env:"STT_HANDY_WINDOW"`       // Окно совпадения буфера и хоткея
+	STTHotkeyDelay       time.Duration `env:"STT_HOTKEY_DELAY"`       // Задержка реакции на Ctrl+Enter
+	SpeechDefaultEnabled bool          `env:"SPEECH_DEFAULT_ENABLED"` // Включать speech-заголовок и дефолтный speech-prompt
+	SpeechHeader         string        `env:"SPEECH_HEADER"`          // Заголовок для блока сообщений из речи
+	SpeechMax            int           `env:"SPEECH_MAX"`             // Максимум хранимых сообщений речи
+	EnableEarlyTick      bool          `env:"ENABLE_EARLY_TICK"`      // Запускать тик ранее при наличии сообщений речи
 
 	// Chat / Twitch
 	ChatHistoryHeader string `env:"CHAT_HISTORY_HEADER"` // Заголовок блока сообщений из чата
@@ -156,13 +157,14 @@ func Defaults() *Config {
 		TickTimeoutSeconds:   120,
 		OverlapPolicy:        "skip", //`skip`|`preempt`
 		MaxConsecutiveErrors: 3,
-		NotificationSendAI:   "sound/notification2.mp3",
+		NotificationSendAI:   "sound/notification3.mp3",
 		NotificationSendTTS:  "sound/notification3.mp3",
 		// STT/Speech
-		STTHandyWindow:  time.Second,
-		STTHotkeyDelay:  100 * time.Millisecond,
-		SpeechMax:       10,
-		EnableEarlyTick: true,
+		STTHandyWindow:       time.Second,
+		STTHotkeyDelay:       100 * time.Millisecond,
+		SpeechDefaultEnabled: true,
+		SpeechMax:            10,
+		EnableEarlyTick:      true,
 		// Chat/Twitch
 		ChatHistoryHeader: "Сообщения из чата",
 		ChatMax:           30,
@@ -172,7 +174,7 @@ func Defaults() *Config {
 			APIKey:  "",
 			Voice:   "omazh",
 			Format:  "mp3",
-			Speed:   "1.3",
+			Speed:   "1.2",
 			Emotion: "evil",
 			Volume:  100,
 		},
